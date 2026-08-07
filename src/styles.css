@@ -34,6 +34,7 @@ html, body {
   color: var(--text);
   font-family: var(--font-body);
   min-height: 100vh;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.01em;
@@ -191,6 +192,52 @@ body.resizing * { cursor: col-resize !important; }
 }
 .mobile-nav a.active, .mobile-nav button.active { background: rgba(255,255,255,.14); box-shadow: var(--highlight-inset); }
 .mobile-nav svg { width: 21px; height: 21px; }
+
+/* ---------- Netflix-style "More" bottom sheet (phones) ---------- */
+.more-sheet-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(6,6,10,.5);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  display: none; align-items: flex-end; justify-content: center;
+  animation: fadeIn .2s var(--ease-smooth) both;
+}
+.more-sheet-overlay.open { display: flex; }
+.more-sheet {
+  position: relative;
+  width: 100%; max-width: 560px; margin: 0 auto;
+  background: linear-gradient(180deg, rgba(30,30,40,.92), rgba(14,14,20,.96));
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid rgba(255,255,255,.16);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-lift), var(--highlight-inset);
+  transform: translateY(110%); transition: transform .35s var(--ease-spring);
+}
+.more-sheet-overlay.open .more-sheet { transform: none; }
+.more-sheet-close {
+  position: absolute; top: 10px; right: 12px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08); color: #fff; font-size: 14px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background .2s, transform .2s;
+}
+.more-sheet-close:hover { background: rgba(255,255,255,.18); transform: rotate(90deg); }
+.more-grab {
+  width: 40px; height: 5px; border-radius: 999px; margin: 0 auto 14px;
+  background: rgba(255,255,255,.25);
+}
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.more-grid a {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 16px 8px; border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  border: 1px solid var(--glass-border);
+  font-size: 12.5px; font-weight: 600; color: var(--text-dim);
+  transition: all .25s var(--ease-spring);
+}
+.more-grid a:hover, .more-grid a:active { background: rgba(255,255,255,.14); color: #fff; transform: translateY(-2px); }
+.more-grid a svg { width: 22px; height: 22px; opacity: .9; }
 
 /* ---------- Liquid-glass contact button (Apple style) ---------- */
 .contact-btn {
@@ -353,13 +400,19 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 /* ---------- Rows / grids ---------- */
 .row-wrap { position: relative; }
 .row {
-  display: flex; gap: 16px; overflow-x: auto; overflow-y: hidden; padding: 4px 2px 16px;
-  scroll-snap-type: x proximity; cursor: grab;
+  display: flex; gap: 16px; overflow-x: hidden; overflow-y: hidden; padding: 4px 2px 16px;
+  scroll-snap-type: x proximity;
   touch-action: pan-y; user-select: none; -webkit-user-select: none;
 }
+/* Rows NEVER scroll with mouse/trackpad on desktop: overflow-x:hidden makes the
+   browser ignore every wheel/trackpad horizontal gesture natively (no JS guard
+   needed, so vertical page scroll is never swallowed). Arrows move rows via
+   programmatic scrollLeft. Phones get overflow-x:auto below for finger swipes. */
+/* Netflix-style: on touch devices rows swipe with your finger */
+@media (hover: none), (pointer: coarse) {
+  .row, .episode-row, .cast-row { overflow-x: auto; touch-action: pan-x pan-y; cursor: grab; }
+}
 .row img, .episode-row img { -webkit-user-drag: none; }
-.row.dragging, .episode-row.dragging { cursor: grabbing; }
-.row:active { cursor: grabbing; }
 .row > * { scroll-snap-align: start; }
 .row-nav {
   position: absolute; top: 40%; transform: translateY(-50%); z-index: 6;
@@ -383,6 +436,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   background: rgba(255,255,255,.04);
   transition: transform .4s var(--ease-spring), box-shadow .4s var(--ease-smooth), border-color .3s;
   cursor: pointer;
+  isolation: isolate;
 }
 .card:hover { transform: translateY(-5px) scale(1.02); border-color: rgba(255,255,255,.28); box-shadow: var(--shadow-lift); z-index: 3; }
 .card.in-wl { border-color: rgba(10,132,255,.45); box-shadow: inset 0 0 0 1px rgba(10,132,255,.35); }
@@ -506,7 +560,8 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .detail-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em; }
 /* Seasons + episodes */
 .season-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; }
-.episode-row { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x proximity; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.episode-row { display: flex; gap: 16px; overflow-x: hidden; padding-bottom: 12px; scroll-snap-type: x proximity; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.cast-row { touch-action: pan-y; }
 .ep-card {
   width: 268px; flex-shrink: 0; border-radius: 18px; overflow: hidden; cursor: pointer;
   border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05);
@@ -820,12 +875,14 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .player-error.show { display: flex; }
 .player-error .msg { font-size: 15px; color: #ececf2; max-width: 480px; line-height: 1.6; }
 .player-error .sub { font-size: 13px; color: #9c9ca8; }
-.server-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.server-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 4px; }
 .server-tab {
-  display: flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  flex: 1 1 calc(16.66% - 8px); min-width: 118px;
+  padding: 9px 12px; border-radius: 13px;
   background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.05));
   -webkit-backdrop-filter: var(--blur-soft); backdrop-filter: var(--blur-soft);
-  border: 1px solid var(--glass-border); font-size: 13px; font-weight: 600; color: var(--text-dim);
+  border: 1px solid var(--glass-border); font-size: 12.5px; font-weight: 600; color: var(--text-dim);
   transition: all .3s var(--ease-spring); white-space: nowrap;
   box-shadow: var(--highlight-inset);
 }
@@ -845,6 +902,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 .ep-overlay.open { display: flex; }
 body.ep-open { overflow: hidden; }
+/* server tabs: 5-6 per line, wraps instead of scrolling sideways */
+@media (max-width: 720px) {
+  .server-tab { flex: 1 1 calc(33.33% - 8px); min-width: 92px; font-size: 12px; padding: 8px 8px; }
+}
+@media (max-width: 420px) {
+  .server-tab { flex: 1 1 calc(50% - 8px); min-width: 0; }
+}
 .ep-panel {
   width: 100%; max-width: 660px; max-height: min(82vh, 720px);
   display: flex; flex-direction: column;
@@ -946,7 +1010,7 @@ body.ep-open { overflow: hidden; }
 }
 /* cast strip uses the same row-wrap arrows */
 .cast-wrap .row-nav { top: 42%; }
-.cast-row { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; scroll-behavior: smooth; }
+.cast-row { display: flex; gap: 16px; overflow-x: hidden; padding-bottom: 8px; scroll-behavior: smooth; }
 .cast-card { flex-shrink: 0; width: 118px; text-align: center; }
 .cast-card .avatar {
   width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 9px; overflow: hidden;

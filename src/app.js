@@ -233,8 +233,43 @@ try {
     handle.addEventListener('pointerup', up);
   });
 })();
-$('#moreBtn').addEventListener('click', () => { const sb = $('#sidebar'); sb.classList.toggle('open'); });
-document.addEventListener('click', (e) => { const sb = $('#sidebar'); if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('#moreBtn')) sb.classList.remove('open'); });
+/* Netflix-style "More" bottom sheet on phones */
+let moreSheet = null;
+$('#moreBtn').addEventListener('click', () => {
+  if (moreSheet && moreSheet.isConnected) { closeMoreSheet(); return; }
+  moreSheet = document.createElement('div');
+  moreSheet.className = 'more-sheet-overlay';
+  moreSheet.innerHTML = `<div class="more-sheet">
+    <button class="more-sheet-close" id="moreSheetClose" aria-label="Close menu">✕</button>
+    <div class="more-grab"></div>
+    <div class="more-grid">
+      <a href="#/categories">${icon('film')}<span>Categories</span></a>
+      <a href="#/anime">${icon('sparkles')}<span>Anime</span></a>
+      <a href="#/browse/tv?sort=top_rated">${icon('star')}<span>Top Rated</span></a>
+      <a href="#/history">${icon('clock')}<span>History</span></a>
+      <a href="#/legal">${icon('info')}<span>Legal</span></a>
+      <a href="https://t.me/te4m1ord" target="_blank" rel="noopener">${icon('telegram')}<span>Contact</span></a>
+    </div>
+  </div>`;
+  document.body.appendChild(moreSheet);
+  $('#moreSheetClose', moreSheet).addEventListener('click', closeMoreSheet);
+  requestAnimationFrame(() => moreSheet.classList.add('open'));
+});
+function closeMoreSheet() {
+  if (!moreSheet) return;
+  const el = moreSheet; moreSheet = null;
+  el.classList.remove('open');
+  /* capture el locally — reading the module var at fire time would be null */
+  setTimeout(() => el.remove(), 300);
+}
+document.addEventListener('click', (e) => {
+  if (moreSheet && moreSheet.isConnected) {
+    const inSheet = e.target.closest('.more-sheet');
+    /* backdrop tap, or any link inside the sheet (navigation) closes it */
+    if ((!inSheet && !e.target.closest('#moreBtn')) || (inSheet && e.target.closest('a'))) closeMoreSheet();
+  }
+  const sb = $('#sidebar'); if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('#moreBtn')) sb.classList.remove('open');
+});
 
 function setActiveNav() {
   const path = (location.hash || '#/').replace(/^#/, '') || '/';
@@ -410,11 +445,11 @@ function bindRowNavs() {
     const prev = $('.row-nav.prev', wrap), next = $('.row-nav.next', wrap);
     prev?.addEventListener('click', () => slideRow(row, -1));
     next?.addEventListener('click', () => slideRow(row, 1));
-    /* block horizontal wheel/trackpad scrolling of rows */
-    row.addEventListener('wheel', (e) => {
-      const dx = Math.abs(e.deltaX), dy = Math.abs(e.deltaY);
-      if (dx > dy && dx > 2) e.preventDefault();
-    }, { passive: false });
+    /* Rows are overflow-x:hidden on desktop (see .row in styles.css), so the
+       browser natively ignores every wheel/trackpad left-right gesture — rows
+       only move via the arrow buttons. No wheel listener on purpose: a strict
+       deltaX guard would also swallow vertical page scroll on diagonal
+       trackpad swipes. Phones switch rows to overflow-x:auto + touch swipe. */
     /* keep arrows honest as the row scrolls (also after slideRow animation) */
     row.addEventListener('scroll', () => updateRowArrows(wrap, row), { passive: true });
     rowData.push(row);
