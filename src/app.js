@@ -520,13 +520,16 @@ function bindHeroCarousel() {
   const dots = $$('.hero-dot', hero);
   const canHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   let idx = 0, timer = null;
+  const bigScreen = (window.innerWidth || 1200) >= 1024;
   const show = (i) => {
     idx = (i + slides.length) % slides.length;
     slides.forEach((s, k) => {
       s.classList.toggle('active', k === idx);
       /* upgrade only the visible slide to full-res original — keeps the other
-         slides light (w1280) so the page doesn't download 6 huge backdrops */
-      if (k === idx) {
+         slides light (w1280) so the page doesn't download 6 huge backdrops.
+         Phones skip the upgrade entirely: w1280 already out-resolves a small
+         screen and avoids a multi-MB decode per slide swap. */
+      if (k === idx && bigScreen) {
         const img = $('img.backdrop', s);
         if (img && img.dataset.hi && img.src !== img.dataset.hi) img.src = img.dataset.hi;
       } else {
@@ -544,7 +547,7 @@ function bindHeroCarousel() {
        the hover trailer keeps playing until the cursor moves away (arrows,
        dots and the IntersectionObserver all route through this guard) */
     if (hero.dataset.hov === '1') return;
-    stop(); timer = setInterval(next, 6000); heroTimer = timer;
+    stop(); timer = setInterval(next, bigScreen ? 6000 : 9000); heroTimer = timer;
   };
   $('.hero-nav.next', hero)?.addEventListener('click', (e) => { e.stopPropagation(); next(); start(); });
   $('.hero-nav.prev', hero)?.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); start(); });
@@ -1417,9 +1420,31 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* ---------------- BOOT ---------------- */
+/* PERF: card placeholder shimmer sweeps animate infinitely until each lazy
+   image loads — a long page has dozens running at once. Pause the sweep for
+   off-screen placeholders; it resumes the moment one scrolls into view. */
+function pauseShimmerOffscreen() {
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((ents) => {
+    ents.forEach(en => {
+      const el = en.target;
+      if (!el.classList.contains('shimmer')) return;
+      el.style.animationPlayState = en.isIntersecting ? 'running' : 'paused';
+    });
+  }, { rootMargin: '200px' });
+  /* watch the whole body — #main renders rows, but the Ctrl+K search popup
+     re-renders its .shimmer-thumb results outside #main on every search */
+  const scan = (root) => $$('.card-ph.shimmer, .shimmer-thumb', root || document).forEach(el => io.observe(el));
+  const mo = new MutationObserver((muts) => {
+    muts.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) scan(n); }));
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+  scan(document);
+}
 function boot() {
   buildSearchPopup();
   new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
+  pauseShimmerOffscreen();
   router();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

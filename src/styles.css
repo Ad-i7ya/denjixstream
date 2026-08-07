@@ -1397,6 +1397,18 @@ body.ep-open { overflow: hidden; }
   /* hero ambience blobs: smaller + static on phones — a 420px blur(100px)
      layer that transform-animates forever is the top mobile jank source */
   .hero-slide .blob { width: 250px; height: 250px; filter: blur(64px); animation: none; opacity: .16; }
+  /* PERF: the always-on fixed chrome (bottom nav, home logo chip, hamburger)
+     re-samples the page behind it on EVERY scroll frame. Their dark
+     translucent backgrounds already carry the glass look — dropping the
+     backdrop blur here removes the #1 mobile scroll-jank source with zero
+     visible difference on small screens. */
+  .mobile-nav, .float-logo, .menu-btn {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  /* the hero slideshow's slow zoom on the visible backdrop repaints a big
+     area every frame — static crop is imperceptible on phones, far cheaper */
+  .hero-slide .backdrop,
+  .hero-slide.active .backdrop { animation: none; }
 }
 @media (max-width: 640px) {
   .hero { aspect-ratio: 16/6.8; }
