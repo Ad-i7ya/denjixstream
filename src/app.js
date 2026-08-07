@@ -87,10 +87,20 @@ const LOGO_MARK = `<svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns=
   <rect x="2.5" y="2.5" width="59" height="59" rx="16" fill="url(#dxmTile)"/>
   <rect x="2.5" y="2.5" width="59" height="59" rx="16" stroke="rgba(255,255,255,.22)" stroke-width="1.3"/>
   <path d="M9 16.5C9 11.9 12.9 8 17.5 8h29c4.6 0 8.5 3.9 8.5 8.5v6H9v-6Z" fill="rgba(255,255,255,.06)"/>
-  <path d="M24.6 21.9v20.2a1.7 1.7 0 0 0 2.56 1.47l16.4-10.1a1.7 1.7 0 0 0 0-2.94l-16.4-10.1a1.7 1.7 0 0 0-2.56 1.47Z" fill="url(#dxmPlay)"/>
+  <path d="M24.4 21.6v20.8l15.8-10.4-15.8-10.4Z" fill="url(#dxmPlay)" stroke="url(#dxmPlay)" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
   <rect x="46.5" y="27.6" width="6.6" height="2.9" rx="1.45" fill="url(#dxmAcc)"/>
   <rect x="45" y="33.4" width="8.1" height="2.9" rx="1.45" fill="url(#dxmAcc)" opacity=".5"/>
 </svg>`;
+
+/* Apple-style wordmark — "Denji" in white, "Xstream" in the brand blue accent
+   (generic: any name ending in xstream gets the two-tone treatment) */
+const LOGO_WORD = (name) => {
+  const n = String(name);
+  const m = n.match(/^(.*?)(xstream)$/i);
+  return m && m[1]
+    ? `<span class="logo-word">${esc(m[1])}<span class="logo-accent">${esc(m[2])}</span></span>`
+    : `<span class="logo-word">${esc(n)}</span>`;
+};
 
 /* ---------------- TOAST ---------------- */
 let toastTimer;
@@ -176,7 +186,7 @@ const app = document.createElement('div'); app.className = 'app';
 const sidebarHTML = `
 <aside class="sidebar" id="sidebar">
   <div class="sb-resize" id="sbResize" title="Drag to resize"></div>
-  <div class="logo"><a href="#/" title="${esc(SITE_NAME)}">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a></div>
+  <div class="logo"><a href="#/" title="${esc(SITE_NAME)}">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a></div>
   <div class="side-section">
     <a class="side-link" data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
     <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>      <a class="side-link" data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
@@ -215,7 +225,7 @@ const sidebarHTML = `
 <div class="toast" id="toast"></div>`;
 app.innerHTML = sidebarHTML + `
 <button class="menu-btn" id="menuBtn" aria-label="Open menu"><span></span><span></span><span></span></button>
-<a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>`;
+<a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>`;
 document.body.prepend(app);
 /* liquid-glass route veil — one fixed element that blurs the outgoing page
    while the next route swaps in underneath; opacity is driven by the router */
@@ -233,7 +243,7 @@ const updateFloatLogo = () => {
 window.addEventListener('scroll', updateFloatLogo, { passive: true });
 const main = $('#main');
 const footerNote = () => `<footer class="site-footer">
-  <a class="foot-brand" href="#/">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>
+  <a class="foot-brand" href="#/">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>
   <nav class="foot-links" aria-label="Footer">
     <a href="#/">Home</a><a href="#/browse/movie">Movies</a><a href="#/browse/tv">TV Shows</a>
     <a href="#/anime">Anime</a><a href="#/categories">Categories</a><a href="#/legal">Legal / DMCA</a>

@@ -124,6 +124,12 @@ body.resizing * { cursor: col-resize !important; }
   background: linear-gradient(180deg, #ffffff 32%, #d9dde9 100%);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
+/* two-tone Apple wordmark: the “Xstream” half wears the brand blue gradient */
+.logo-accent {
+  font-weight: 700; /* 650 is not a loaded Inter weight — 700 renders deterministically everywhere */
+  background: linear-gradient(100deg, #7fc2ff 0%, #4db0ff 45%, #5e5ce6 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
 .side-section {
   position: relative;
   background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
