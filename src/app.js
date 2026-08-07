@@ -1003,11 +1003,14 @@ async function viewWatch(params) {
       <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
       <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
     </div>
-    <!-- sandbox WITHOUT allow-popups / allow-top-navigation: embed players run
-         normally (scripts/same-origin/forms/presentation) but their ad scripts
-         (tagivi, amungus, llvpn popunders) cannot open tabs or redirect the page -->
+    <!-- sandbox: players boot fully (scripts/same-origin/forms/popups/modals/
+         downloads/presentation) while allow-top-navigation stays OFF so an
+         embed can never redirect the whole tab away from the site. Popups may
+         open but stay INSIDE the sandbox (no allow-popups-to-escape-sandbox)
+         — popunder ads can't escape to real tabs. The pl-shield swallows stray
+         clicks for the first seconds, and the servers were chosen ad-light. -->
     <div class="pl-shield" aria-hidden="true"></div>
-    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-downloads allow-modals allow-orientation-lock" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];
