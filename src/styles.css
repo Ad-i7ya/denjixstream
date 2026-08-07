@@ -522,6 +522,18 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .hero-slide.playing .shade { opacity: .35; transition: opacity .5s; }
 .hero-slide.playing .content { opacity: .95; }
 .hero-slide.playing .backdrop { animation: none; opacity: 0; transition: opacity .5s; }
+/* parallax layer — wraps the artwork, oversized 20% top/bottom so the scroll
+   translate (driven via the --hp custom property by initHeroParallax) can
+   never expose an edge; the img inside keeps its own heroZoom animation.
+   will-change is gated to fine pointers: on phones (where the parallax never
+   runs) and hidden slides it would keep 6 hero-sized layers GPU-promoted. */
+.hero-bg {
+  position: absolute; top: -20%; left: 0; right: 0; height: 140%;
+  transform: translate3d(0, var(--hp, 0px), 0);
+}
+@media (pointer: fine) {
+  .hero-bg { will-change: transform; }
+}
 .hero-slide .backdrop {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   /* only the visible slide zooms — hidden slides must idle their layers */

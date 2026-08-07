@@ -303,6 +303,32 @@ document.body.appendChild(aurora);
   window.addEventListener('scroll', () => { if (!pRaf) pRaf = requestAnimationFrame(apply); }, { passive: true });
   apply();
 })();
+/* hero backdrop parallax — the artwork layer (.hero-bg) translates down at a
+   fraction of the scroll while the hero text scrolls at normal speed, so the
+   backdrop visibly lags behind. Transform-only + rAF-throttled, clamped so the
+   oversized layer never exposes an edge; self-healing (re-queries .hero each
+   frame, so it works across route changes without re-binding). Desktop-only
+   (pointer: fine) and skipped for reduced-motion. The img inside keeps its own
+   heroZoom animation untouched. */
+(function initHeroParallax() {
+  if (!window.matchMedia) return;
+  if (!window.matchMedia('(pointer: fine)').matches) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const yPos = () => window.scrollY || document.documentElement.scrollTop;
+  let hRaf = 0;
+  const apply = () => {
+    hRaf = 0;
+    const hero = document.querySelector('.hero');
+    if (!hero) return;
+    const h = hero.offsetHeight || 0;
+    /* backdrop drifts at 30% of scroll, capped at 15% of the hero height —
+       the .hero-bg layer is oversized by 20% top/bottom, so no edge shows */
+    const t = clamp(yPos() * 0.3, 0, Math.max(0, h * 0.15));
+    hero.style.setProperty('--hp', Math.round(t) + 'px');
+  };
+  window.addEventListener('scroll', () => { if (!hRaf) hRaf = requestAnimationFrame(apply); }, { passive: true });
+  apply();
+})();
 let routeTok = 0;
 /* the floating home chip is redundant at the very top (the sidebar and mobile
    nav already have Home buttons there) — it stays tucked away until the user
@@ -647,7 +673,7 @@ function heroSlide(m, i) {
      priority; the hidden slides stay lazy (they crossfade in later) */
   const eager = i === 0 ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"';
   return `<div class="hero-slide" data-id="${m.id}" data-media="${med}">
-    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" data-hi="${IMG_HERO(m.backdrop_path)}" alt=""${eager} decoding="async">` : ''}
+    ${m.backdrop_path ? `<div class="hero-bg"><img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" data-hi="${IMG_HERO(m.backdrop_path)}" alt=""${eager} decoding="async"></div>` : ''}
     <div class="blob b1"></div><div class="blob b2"></div>
     <div class="shade"></div>
     <div class="hero-trailer"></div>
