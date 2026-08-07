@@ -901,9 +901,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 /* ad shield: an invisible layer over the player swallows the FIRST tap — the
    one interaction clickjacking ad-overlays hook — then dissolves so the video
-   is fully interactive. Combined with the iframe sandbox's allow-popups (any
-   popup the embed opens lands on our window, where the popup auto-closer
-   slams it shut) the embed has no way to surface ad tabs. */
+   is fully interactive. The iframe is sandbox-free (embeds error otherwise);
+   any popup the embed opens is caught by the window popup auto-closer in
+   app.js and slammed shut, so ad tabs never surface. */
 .pl-shield {
   position: absolute; inset: 0; z-index: 5;
   cursor: pointer;

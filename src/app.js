@@ -1146,17 +1146,16 @@ async function viewWatch(params) {
       <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
       <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
     </div>
-    <!-- Ad-proof player: embeds run with allow-popups so their player logic
-         works normally (a restrictive no-popups sandbox made several servers
-         error out). Every popup the embed opens lands on THIS window — the
-         popup auto-closer in boot() catches the popup event and slams it shut
-         before an ad tab can appear. allow-top-navigation stays OFF so the
-         embed can never hijack our page. The pl-shield swallows the FIRST tap
-         (the interaction clickjacking ad-overlays hook); tap once to enable
-         controls. No referrerpolicy override: embeds rely on the origin
-         referrer to resolve streams. -->
+    <!-- Ad-proof player: NO sandbox attribute — some embeds detect a sandboxed
+         frame and refuse to play, so the player runs fully sandbox-free for
+         100% server compatibility. Ad tabs are handled by the auto-closers in
+         boot(): the window 'popup' event + the window.open wrapper slam any
+         ad popup shut instantly (legit t.me/YouTube windows are allowlisted).
+         The pl-shield swallows the FIRST tap (the interaction clickjacking
+         ad-overlays hook); tap once to enable controls. No referrerpolicy
+         override: embeds rely on the origin referrer to resolve streams. -->
     <div class="pl-shield" aria-hidden="true"><span class="pl-shield-chip">${icon('play')}<em>Tap to enable controls</em></span></div>
-    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-downloads allow-modals allow-orientation-lock" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    <iframe id="plFrame" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];
@@ -1447,11 +1446,11 @@ function pauseShimmerOffscreen() {
   scan(document);
 }
 /* ---------- Ad popup auto-closer ----------
-   Embeds run with sandbox allow-popups so their players work on every server.
-   Any window they open (ads, popunders, "open app" spam) is owned by THIS
-   window — we catch the popup event and close it instantly, so an ad tab can
-   never appear. Our own Trailer button stamps allowPopupTs so the window it
-   opens is let through. */
+   The player iframe is deliberately sandbox-free (embeds error out in a
+   sandboxed frame). Ad tabs are instead caught here: any window the embed
+   opens (ads, popunders, "open app" spam) surfaces on THIS window — we catch
+   the popup event and close it instantly. Our own Trailer button stamps
+   allowPopupTs so the window it opens is let through. */
 let allowPopupTs = 0;
 /* legit destinations that are always allowed to open (Trailer, our Telegram
    links, etc.) — never auto-closed, even while the player is on screen */
