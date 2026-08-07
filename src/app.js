@@ -635,6 +635,7 @@ const SKELETON_GRID = `<div class="grid">${Array.from({ length: 10 }, () => '<di
 function apiWrap(p) { return p.catch(e => { console.error(e); main.innerHTML = `<div class="empty-state"><h3>Something went wrong</h3><p class="muted">${esc(e.message)}. Try again in a moment.</p></div>`; }); }
 
 async function viewHome() {
+  homeSeen.clear(); /* fresh per visit — genre rows dedupe only against this render's main rows */
   main.innerHTML = `<div class="skeleton" style="height:300px;border-radius:20px"></div>${SKELETON_ROW}${SKELETON_ROW}${SKELETON_GRID}`;
   const [trendingMovie, trendingTv, popular, topRated, nowPlaying, upcoming] = await Promise.all([
     api('/trending/movie/day?language=en-US').then(r => r.results).catch(() => []),
@@ -645,6 +646,9 @@ async function viewHome() {
     api('/movie/upcoming?language=en-US').then(r => r.results).catch(() => []),
   ]);
   const heroItems = [...trendingMovie.map(m => ({ ...m, media_type: 'movie' })), ...trendingTv.map(m => ({ ...m, media_type: 'tv' }))];
+  /* remember what the main rows show so the genre rows below don't repeat them */
+  [trendingMovie, popular, topRated, nowPlaying, upcoming].flat().forEach(m => m && m.id != null && homeSeen.add('m' + m.id));
+  trendingTv.forEach(m => m && m.id != null && homeSeen.add('t' + m.id));
   const cont = Object.values(Store.progress.all())
     .filter(p => p && p.duration && p.time > 30 && p.time / p.duration < 0.92)
     .sort((a, b) => (b.ts || 0) - (a.ts || 0))
@@ -680,27 +684,34 @@ async function viewHome() {
 
 /* Extra category rows load right after the main rows — the home page becomes a
    long, browsable scroll where every section is its own category. */
+/* ids already shown in the main home rows (Trending/Popular/Top Rated/…)
+   are remembered so the genre rows below never repeat a blockbuster twice */
+const homeSeen = new Set();
 async function loadGenreRows() {
   const box = $('#genreRows'); if (!box) return;
+  /* a blockbuster tagged Action+Sci-Fi+Comedy used to repeat in every row —
+     each genre row now shows titles none of the previous rows claimed */
+  const seen = new Set();
+  const seenF = (m) => { const k = 'm' + m.id; if (!m || m.id == null || seen.has(k) || homeSeen.has(k)) return false; seen.add(k); return true; };
   const out = await Promise.all([
-    genreRow('Action', 28),
-    genreRow('Sci-Fi & Fantasy', 878),
-    genreRow('Comedy', 35),
-    genreRow('Horror', 27),
-    genreRow('Romance', 10749),
-    genreRow('Crime', 80),
-    genreRow('Animation', 16),
-    genreRow('Documentary', 99),
-    genreRow('Drama', 18),
+    genreRow('Action', 28, seenF),
+    genreRow('Sci-Fi & Fantasy', 878, seenF),
+    genreRow('Comedy', 35, seenF),
+    genreRow('Horror', 27, seenF),
+    genreRow('Romance', 10749, seenF),
+    genreRow('Crime', 80, seenF),
+    genreRow('Animation', 16, seenF),
+    genreRow('Documentary', 99, seenF),
+    genreRow('Drama', 18, seenF),
     grossRow(),
     airingRow(),
   ]);
   box.innerHTML = out.join('');
   box.querySelectorAll('section').forEach((s, i) => s.style.animationDelay = (i * 55) + 'ms');
 }
-async function genreRow(title, gid) {
+async function genreRow(title, gid, seenF) {
   const r = await api(`/discover/movie?language=en-US&with_genres=${gid}&sort_by=popularity.desc`).catch(() => null);
-  const items = ((r && r.results) || []).slice(0, 16);
+  const items = ((r && r.results) || []).filter(seenF || (() => true)).slice(0, 16);
   return items.length ? rowSection(title, items, `#/browse/movie?genre=${gid}`) : '';
 }
 async function grossRow() {
@@ -859,7 +870,7 @@ async function viewAnime() {
   const JA = 'with_original_language=ja&with_genres=16';
   const tvD = (extra) => `/discover/tv?language=en-US&${JA}&${extra || 'sort_by=popularity.desc'}&page=1`;
   const mvD = (extra) => `/discover/movie?language=en-US&${JA}&${extra || 'sort_by=popularity.desc'}&page=1`;
-  const genreD = (id) => `/discover/tv?language=en-US&with_original_language=ja&with_genres=16,${id}&sort_by=popularity.desc&page=1`;
+  const genreD = (id) => `/discover/tv?language=en-US&with_original_language=ja&with_genres=16,${id}&sort_by=vote_average.desc&vote_count.gte=10&page=1`;
   /* genre id + label — all verified to return Japanese animation content */
   const GENRES = [
     [10759, 'Action Anime'], [10765, 'Sci-Fi Anime'], [10749, 'Romance Anime'],
@@ -901,22 +912,32 @@ async function viewAnime() {
     const res = {}; let vi = 0; for (const k of Object.keys(q)) res[k] = vals[vi++];
     const tv = (m) => ({ ...m, media_type: 'tv' });
     const mv = (m) => ({ ...m, media_type: 'movie' });
+    /* Big titles carry MANY genre tags, so popularity-sorted categories all
+       showed the same roster. Dedupe across every section of this page —
+       earlier sections keep their picks, later ones show their own deep cuts. */
+    const seen = new Set();
+    const pick = (arr) => (arr || []).filter(m => {
+      const k = m && (m.first_air_date ? 't' : 'm') + m.id;
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
     const rows = [];
     if (aw !== 'movies') {
-      rows.push(rowSection('Trending Anime Series', (res.series || []).map(tv), '#/browse/tv?anime=1'));
-      rows.push(rowSection('Currently Airing', (res.airing || []).map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
-      rows.push(gridSection('New Anime This Year', (res.fresh || []).slice(0, 10).map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
-      rows.push(rowSection('Most Reviewed Anime', (res.reviewed || []).map(tv), '#/browse/tv?anime=1&sort=reviewed'));
-      rows.push(gridSection('Masterpiece Anime', (res.master || []).slice(0, 10).map(tv), '#/browse/tv?anime=1&sort=top_rated'));
-      rows.push(rowSection('Upcoming Anime Series', (res.upSeries || []).map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
-      GENRES.forEach(([id, label], i) => rows.push(gridSection(label, (res['g' + i] || []).slice(0, 10).map(tv), `#/browse/tv?anime=1&genre=${id}`)));
-      DECADES.forEach(([yr, label], i) => rows.push(gridSection(label, (res['d' + i] || []).slice(0, 10).map(tv), `#/browse/tv?anime=1&decade=${yr}`)));
+      rows.push(rowSection('Trending Anime Series', pick(res.series).map(tv), '#/browse/tv?anime=1'));
+      rows.push(rowSection('Currently Airing', pick(res.airing).map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
+      rows.push(gridSection('New Anime This Year', pick(res.fresh).slice(0, 10).map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
+      rows.push(rowSection('Most Reviewed Anime', pick(res.reviewed).map(tv), '#/browse/tv?anime=1&sort=reviewed'));
+      rows.push(gridSection('Masterpiece Anime', pick(res.master).slice(0, 10).map(tv), '#/browse/tv?anime=1&sort=top_rated'));
+      rows.push(rowSection('Upcoming Anime Series', pick(res.upSeries).map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
+      GENRES.forEach(([id, label], i) => rows.push(gridSection(label, pick(res['g' + i]).slice(0, 10).map(tv), `#/browse/tv?anime=1&genre=${id}&sort=top_rated`)));
+      DECADES.forEach(([yr, label], i) => rows.push(gridSection(label, pick(res['d' + i]).slice(0, 10).map(tv), `#/browse/tv?anime=1&decade=${yr}`)));
     }
     if (aw !== 'series') {
-      rows.push(rowSection('Anime Movies', (res.movies || []).map(mv), '#/browse/movie?anime=1'));
-      rows.push(rowSection('Upcoming Anime Movies', (res.upMovies || []).map(mv), '#/browse/movie?anime=1&sort=upcoming'));
-      rows.push(rowSection('Top Rated Anime Movies', (res.topMovies || []).map(mv), '#/browse/movie?anime=1&sort=top_rated'));
-      rows.push(rowSection('Classic Anime Movies', (res.classicMovies || []).map(mv), '#/browse/movie?anime=1'));
+      rows.push(rowSection('Anime Movies', pick(res.movies).map(mv), '#/browse/movie?anime=1'));
+      rows.push(rowSection('Upcoming Anime Movies', pick(res.upMovies).map(mv), '#/browse/movie?anime=1&sort=upcoming'));
+      rows.push(rowSection('Top Rated Anime Movies', pick(res.topMovies).map(mv), '#/browse/movie?anime=1&sort=top_rated'));
+      rows.push(rowSection('Classic Anime Movies', pick(res.classicMovies).map(mv), '#/browse/movie?anime=1'));
     }
     body.innerHTML = (rows.length ? rows.join('') : `<div class="empty-state">${icon('sparkles')}<h3>Nothing here right now</h3><p class="muted">The anime feed could not be loaded — try again in a moment.</p></div>`) + footerNote();
     bindWatchlistButtons();
