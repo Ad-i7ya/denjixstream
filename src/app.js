@@ -685,17 +685,33 @@ async function viewCategories(params) {
     <div id="catBody"><div class="skeleton" style="height:220px;border-radius:20px"></div></div>`;
   const g = await api(`/genre/${type}/list?language=en-US`).catch(() => ({ genres: [] }));
   const genres = g.genres || [];
-  /* fetch one real backdrop per genre so tiles feel relatable (capped, parallel) */
+  /* One UNIQUE backdrop per genre: a hit movie tagged with several genres (Action +
+     Adventure + Sci-Fi…) used to repeat the same art across 2–3 tiles. We walk down
+     each genre's results until we find an image no other tile has claimed yet. */
+  const used = new Set();
   const arts = await Promise.all(genres.slice(0, 18).map(async (x) => {
     const r = await api(`/discover/${type}?language=en-US&with_genres=${x.id}&sort_by=popularity.desc`).catch(() => null);
-    return (r && r.results && r.results[0] && r.results[0].backdrop_path) ? IMG_CARD(r.results[0].backdrop_path) : '';
+    const results = (r && r.results) || [];
+    for (const m of results) {
+      if (m && m.backdrop_path && !used.has(m.backdrop_path)) { used.add(m.backdrop_path); return IMG_CARD(m.backdrop_path); }
+    }
+    return (results[0] && results[0].backdrop_path) ? IMG_CARD(results[0].backdrop_path) : '';
   }));
   const decades = [['2020', '2020s'], ['2010', '2010s'], ['2000', '2000s'], ['1990', '1990s'], ['1980', '1980s'], ['1970', '1970s & older']];
+  /* one unique backdrop per decade too — pulled from a real hit of that era */
+  const dArts = await Promise.all(decades.map(async ([d]) => {
+    const r = await api(`/discover/${type}?language=en-US&${dateRange(type, d)}&sort_by=popularity.desc`).catch(() => null);
+    const results = (r && r.results) || [];
+    for (const m of results) {
+      if (m && m.backdrop_path && !used.has(m.backdrop_path)) { used.add(m.backdrop_path); return IMG_CARD(m.backdrop_path); }
+    }
+    return (results[0] && results[0].backdrop_path) ? IMG_CARD(results[0].backdrop_path) : '';
+  }));
   $('#catBody').innerHTML =
     `<h2 class="section-title" style="margin-bottom:14px">${icon('film','inline')} Browse by genre</h2>` +
     `<div class="cat-grid">${genres.map((x, i) => `<a class="cat-tile" style="background:${CAT_GRADS[i % CAT_GRADS.length]}" href="#/browse/${type}?genre=${x.id}" title="${esc(x.name)}">${arts[i] ? `<img class="cat-bg" src="${arts[i]}" alt="" loading="lazy" decoding="async">` : ''}<span class="cat-shade"></span><span class="cat-name">${esc(x.name)}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
     `<h2 class="section-title" style="margin:30px 0 14px">${icon('calendar','inline')} Browse by decade</h2>` +
-    `<div class="cat-grid cat-decades">${decades.map(([d, label]) => `<a class="cat-tile cat-decade" href="#/browse/${type}?decade=${d}"><span class="cat-name">${label}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
+    `<div class="cat-grid cat-decades">${decades.map(([d, label], i) => `<a class="cat-tile cat-decade" href="#/browse/${type}?decade=${d}">${dArts[i] ? `<img class="cat-bg" src="${dArts[i]}" alt="" loading="lazy" decoding="async">` : ''}<span class="cat-shade"></span><span class="cat-name">${label}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
     `<h2 class="section-title" style="margin:30px 0 14px">${icon('sparkles','inline')} Quick picks</h2>` +
     `<div class="filter-tabs">${[['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], type === 'movie' ? ['now_playing', 'Now Playing'] : ['on_the_air', 'On The Air']].map(s => `<a class="chip" href="#/browse/${type}?sort=${s[0]}">${s[1]}</a>`).join('')}</div>`;
 }
