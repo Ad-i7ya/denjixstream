@@ -303,14 +303,17 @@ document.body.appendChild(aurora);
   window.addEventListener('scroll', () => { if (!pRaf) pRaf = requestAnimationFrame(apply); }, { passive: true });
   apply();
 })();
-/* hero backdrop parallax — the artwork layer (.hero-bg) translates down at a
-   fraction of the scroll while the hero text scrolls at normal speed, so the
-   backdrop visibly lags behind. Transform-only + rAF-throttled, clamped so the
-   oversized layer never exposes an edge; self-healing (re-queries .hero each
-   frame, so it works across route changes without re-binding). Desktop-only
-   (pointer: fine) and skipped for reduced-motion. The img inside keeps its own
-   heroZoom animation untouched. */
-(function initHeroParallax() {
+/* hero scroll effects — two compositor-only layers of depth that respond to
+   scroll while the hero is on screen (self-healing: re-queries .hero each
+   frame, so it works across route changes without re-binding):
+     1. Parallax — the artwork layer (.hero-bg) translates down at 30% of the
+        scroll (capped at 15% of the hero height, oversized layer so no edge
+        shows), lagging behind the hero text.
+     2. Apple-style collapse — the whole hero scales down ~7% and fades out
+        over the first hero-height of scroll, so it shrinks away cleanly.
+   Desktop-only (pointer: fine) and skipped for reduced-motion. The backdrop
+   img inside keeps its own heroZoom animation untouched. */
+(function initHeroScrollFX() {
   if (!window.matchMedia) return;
   if (!window.matchMedia('(pointer: fine)').matches) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -321,10 +324,14 @@ document.body.appendChild(aurora);
     const hero = document.querySelector('.hero');
     if (!hero) return;
     const h = hero.offsetHeight || 0;
-    /* backdrop drifts at 30% of scroll, capped at 15% of the hero height —
-       the .hero-bg layer is oversized by 20% top/bottom, so no edge shows */
-    const t = clamp(yPos() * 0.3, 0, Math.max(0, h * 0.15));
+    const y = yPos();
+    const t = clamp(y * 0.3, 0, Math.max(0, h * 0.15));
     hero.style.setProperty('--hp', Math.round(t) + 'px');
+    if (h > 0) {
+      const p = clamp(y / h, 0, 1); /* 0 at top → 1 once the hero has scrolled out */
+      hero.style.setProperty('--hs', (1 - 0.07 * p).toFixed(3));
+      hero.style.setProperty('--ho', (1 - p).toFixed(3));
+    }
   };
   window.addEventListener('scroll', () => { if (!hRaf) hRaf = requestAnimationFrame(apply); }, { passive: true });
   apply();

@@ -491,6 +491,15 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   aspect-ratio: 16/4.8; margin-bottom: 30px;
   border: 1px solid rgba(255,255,255,.14);
   box-shadow: var(--shadow-glass);
+  /* Apple-style scroll-out collapse: initHeroScrollFX drives --hs (scale) and
+     --ho (opacity) over the first hero-height of scroll; defaults keep it
+     static on touch devices and for reduced-motion users */
+  transform: scale(var(--hs, 1));
+  opacity: var(--ho, 1);
+  transform-origin: top center;
+}
+@media (pointer: fine) {
+  .hero { will-change: transform, opacity; }
 }
 .hero-slide {
   position: absolute; inset: 0; opacity: 0; visibility: hidden;
