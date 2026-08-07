@@ -1,0 +1,842 @@
+'use strict';
+/* ============================================================
+   CineGlass — frontend application (streamex.sh-style SPA)
+   ============================================================ */
+const $  = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+const SITE_NAME = window.SITE_NAME || 'CineGlass';
+const IMG = 'https://image.tmdb.org/t/p';
+const IMG_BACKDROP = (p) => p ? `${IMG}/w1280${p}` : '';
+const IMG_POSTER   = (p) => p ? `${IMG}/w500${p}`  : '';
+const IMG_FACE     = (p) => p ? `${IMG}/w185${p}`  : '';
+const fmtTime = (s) => { if (!isFinite(s)) return '0:00'; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const year = (d) => (d || '').slice(0, 4);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+/* ---------------- API ---------------- */
+async function api(path, opts) {
+  const r = await fetch(`/api/tmdb${path}`, opts);
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
+/* ---------------- STORE (localStorage) ---------------- */
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const Store = {
+  watchlist: { all() { return store.get('sg_watchlist', []); }, has(id, type) { return this.all().some(x => x.id === id && x.type === type); }, toggle(m) { const l = this.all(); const i = l.findIndex(x => x.id === m.id && x.type === m.type); if (i >= 0) l.splice(i, 1); else l.unshift({ id: m.id, type: m.type, title: m.title || m.name, poster: m.poster_path, backdrop: m.backdrop_path, vote: m.vote_average, year: year(m.release_date || m.first_air_date) }); store.set('sg_watchlist', l); return i < 0; } },
+  progress: { get(key) { return store.get('sg_progress', {})[key]; }, set(key, p) { const all = store.get('sg_progress', {}); all[key] = p; store.set('sg_progress', all); }, all() { return store.get('sg_progress', {}); } },
+  history: { all() { return store.get('sg_history', []); }, add(h) { let l = this.all().filter(x => !(x.key === h.key)); l.unshift(h); store.set('sg_history', l.slice(0, 60)); }, clear() { store.set('sg_history', []); } },
+};
+
+/* ---------------- ICONS (heroicons outline) ---------------- */
+const ICONS = {
+  home: '<path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>',
+  search: '<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>',
+  browse: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"/>',
+  movie: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0 1 18 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 7.746 6 7.125v-1.5M4.875 8.25C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0 1 18 7.125v-1.5m1.125 2.625c-.621 0-1.125.504-1.125 1.125v1.5m2.625-2.625c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 0 1 6 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m-12 5.25v-5.25m0 5.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125m-12 0v-1.5c0-.621-.504-1.125-1.125-1.125M18 18.375v-5.25m0 5.25v-1.5c0 .621.504 1.125 1.125 1.125M18 13.125v1.5c0 .621.504 1.125 1.125 1.125M18 13.125c0-.621.504-1.125 1.125-1.125M6 13.125v1.5c0 .621-.504 1.125-1.125 1.125M6 13.125C6 12.504 5.496 12 4.875 12m-1.5 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M19.125 12h1.5m0 0c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h1.5m14.25 0h1.5"/>',
+  tv: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z"/>',
+  sparkles: '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/>',
+  bookmark: '<path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"/>',
+  clock: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+  play: '<path stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/>',
+  pause: '<path stroke-linejoin="round" d="M6.75 5.25h2.25v13.5H6.75V5.25Zm8.25 0h2.25v13.5H15V5.25Z"/>',
+  volume: '<path stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"/>',
+  mute: '<path stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"/>',
+  fullscreen: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25-11.25v4.5m0-4.5h-4.5m4.5 0L15 9m6.75 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15"/>',
+  exitfs: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/>',
+  gear: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>',
+  download: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>',
+  chevL: '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>',
+  chevR: '<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>',
+  star: '<path stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>',
+  x: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>',
+  arrowL: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/>',
+  check: '<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>',
+  users: '<path stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/>',
+  calendar: '<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/>',
+  info: '<path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>',
+  dots: '<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/>',
+  film: '<path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>',
+  telegram: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>',
+  next: '<path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"/>',
+  speed: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+};
+const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cls}">${ICONS[name] || ''}</svg>`;
+
+/* ---------------- TOAST ---------------- */
+let toastTimer;
+function toast(msg) {
+  let t = $('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ---------------- ROUTER ---------------- */
+const routes = {
+  '/': viewHome,
+  '/search': viewSearch,
+  '/browse': viewBrowse,
+  '/movie/:id': viewDetail,
+  '/tv/:id': viewDetail,
+  '/watch/movie/:id': viewWatch,
+  '/watch/tv/:id/:season/:episode': viewWatch,
+  '/watchlist': viewWatchlist,
+  '/history': viewHistory,
+  '/legal': viewLegal,
+};
+function matchRoute(hash) {
+  const path = hash.replace(/^#/, '') || '/';
+  for (const [pat, fn] of Object.entries(routes)) {
+    const pp = pat.split('/').filter(Boolean), hp = path.split('/').filter(Boolean);
+    if (pp.length !== hp.length) continue;
+    const params = {}; let ok = true;
+    pp.forEach((p, i) => { if (p.startsWith(':')) params[p.slice(1)] = decodeURIComponent(hp[i]); else if (p !== hp[i]) ok = false; });
+    if (ok) return { fn, params };
+  }
+  return { fn: () => { main.innerHTML = `<div class="empty-state"><h3>Page not found</h3><p class="muted">The page you requested doesn't exist.</p></div>`; }, params: {} };
+}
+function navigate(hash) { location.hash = hash; }
+function router() {
+  const { fn, params } = matchRoute(location.hash || '#/');
+  window.scrollTo(0, 0);
+  fn(params);
+  // re-trigger the per-view fade-up AFTER render for Apple-smooth transitions
+  main.classList.remove('view-enter'); void main.offsetWidth; main.classList.add('view-enter');
+  setActiveNav();
+}
+window.addEventListener('hashchange', router);
+
+/* ---------------- LAYOUT ---------------- */
+const app = document.createElement('div'); app.className = 'app';
+const sidebarHTML = `
+<aside class="sidebar" id="sidebar">
+  <div class="logo"><a href="#/">${esc(SITE_NAME)}</a></div>
+  <div class="side-section">
+    <a class="side-link" data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
+    <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>
+    <a class="side-link" data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
+  </div>
+  <div class="side-scroll">
+    <div class="side-section">
+      <span class="side-label">MEDIA</span>
+      <a class="side-link" data-nav="movie" href="#/browse/movie">${icon('movie')}<span>Movies</span></a>
+      <a class="side-link" data-nav="tv" href="#/browse/tv">${icon('tv')}<span>TV Shows</span></a>
+      <a class="side-link" href="#/browse/tv?sort=top_rated">${icon('sparkles')}<span>Top Rated</span></a>
+      <a class="side-link" data-nav="watchlist" href="#/watchlist">${icon('bookmark')}<span>Watchlist</span></a>
+      <a class="side-link" data-nav="history" href="#/history">${icon('clock')}<span>History</span></a>
+    </div>
+    <div class="side-section">
+      <span class="side-label">MORE</span>
+      <a class="side-link" data-nav="legal" href="#/legal">${icon('info')}<span>Legal / DMCA</span></a>
+    </div>
+  </div>
+  <a class="contact-btn" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Contact on Telegram">${icon('telegram')}<span>Contact</span></a>
+</aside>
+<button class="collapse-btn" id="collapseBtn" title="Collapse sidebar">${icon('chevL')}</button>
+<div class="main-area">
+  <main class="main-scroll" id="main"></main>
+</div>
+<nav class="mobile-nav">
+  <div class="row">
+    <a data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
+    <a data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>
+    <a data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
+    <a data-nav="watchlist" href="#/watchlist">${icon('bookmark')}<span>Watchlist</span></a>
+    <button id="moreBtn">${icon('dots')}<span>More</span></button>
+  </div>
+</nav>
+<div class="toast" id="toast"></div>`;
+document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
+const main = $('#main');
+const footerNote = () => `<div class="footer-disclaimer">This site does not store any files on the server. We only link to media which is hosted on 3rd party services. All trademarks and copyrights belong to their respective owners.</div>`;
+
+$('#collapseBtn').addEventListener('click', () => {
+  const sb = $('#sidebar'), btn = $('#collapseBtn'), el = document.querySelector('.app');
+  sb.classList.toggle('collapsed'); btn.classList.toggle('collapsed'); el.classList.toggle('sidebar-hidden');
+  btn.innerHTML = el.classList.contains('sidebar-hidden') ? icon('chevR') : icon('chevL');
+});
+$('#moreBtn').addEventListener('click', () => { const sb = $('#sidebar'); sb.classList.toggle('open'); });
+document.addEventListener('click', (e) => { const sb = $('#sidebar'); if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('#moreBtn')) sb.classList.remove('open'); });
+
+function setActiveNav() {
+  const path = (location.hash || '#/').replace(/^#/, '') || '/';
+  const key = path.split('/')[1] || 'home';
+  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'legal', 'home'].includes(key) ? key : '');
+  $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
+}
+
+/* ---------------- COMPONENTS ---------------- */
+function backdropCard(m, { grid = false } = {}) {
+  const title = m.title || m.name || '';
+  const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
+  const sub = (m.release_date ? year(m.release_date) : m.first_air_date ? year(m.first_air_date) : '');
+  const href = `#/${m.media_type || (m.first_air_date ? 'tv' : 'movie')}/${m.id}`;
+  return `<div class="card ${grid ? 'grid-card' : 'backdrop'}" onclick="location.hash='${href.slice(1)}'">
+    ${m.backdrop_path ? `<img loading="lazy" src="${IMG_BACKDROP(m.backdrop_path)}" alt="${esc(title)}">` : `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('film')}</div>`}
+    ${rating ? `<div class="card-rating">${icon('star')} ${rating}</div>` : ''}
+    <div class="play-circle">${icon('play')}</div>
+    <div class="glass"><div class="title">${esc(title)}</div><div class="sub">${sub ? `<span>${esc(sub)}</span>` : ''}${rating ? `<span class="r">★ ${rating}</span>` : ''}</div></div>
+    ${progressFlag(m)}
+  </div>`;
+}
+function continueCard(p) {
+  const href = p.type === 'tv' ? `#/watch/tv/${p.id}/${p.season}/${p.episode}` : `#/watch/movie/${p.id}`;
+  const pct = clamp((p.time / p.duration) * 100, 0, 100);
+  return `<div class="card backdrop" onclick="location.hash='${href.slice(1)}'">
+    ${p.backdrop_path ? `<img loading="lazy" src="${IMG_BACKDROP(p.backdrop_path)}" alt="">` : `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('film')}</div>`}
+    <div class="play-circle">${icon('play')}</div>
+    <div class="glass"><div class="title">${esc(p.title || '')}</div><div class="sub">${p.type === 'tv' ? `S${p.season}·E${p.episode}` : 'Movie'} · ${Math.round(pct)}% watched</div></div>
+    <div class="card-progress" style="width:${pct}%"></div>
+  </div>`;
+}
+function progressFlag(m) {
+  const key = (m.media_type || (m.first_air_date ? 'tv' : 'movie')) + '-' + m.id;
+  const p = Store.progress.get(key);
+  if (!p || !p.duration) return '';
+  const pct = clamp((p.time / p.duration) * 100, 0, 100);
+  return `<div class="card-progress" style="width:${pct}%"></div>${pct > 85 ? '<div class="watch-flag">✓ Watched</div>' : ''}`;
+}
+function rowSection(title, items, viewAll) {
+  if (!items || !items.length) return '';
+  return `<section style="margin-bottom:22px">
+    <div class="section-head"><h2 class="section-title">${esc(title)}</h2>${viewAll ? `<a class="view-all" href="${viewAll}">View all →</a>` : ''}</div>
+    <div class="row-wrap">
+      <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
+      <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
+      <div class="row scrollbar-hide">${items.map(m => backdropCard(m)).join('')}</div>
+    </div>
+  </section>`;
+}
+function gridSection(title, items, viewAll) {
+  if (!items || !items.length) return '';
+  return `<section style="margin-bottom:26px">
+    <div class="section-head"><h2 class="section-title">${esc(title)}</h2>${viewAll ? `<a class="view-all" href="${viewAll}">View all →</a>` : ''}</div>
+    <div class="grid">${items.map(m => backdropCard(m, { grid: true })).join('')}</div>
+  </section>`;
+}
+function heroBanner(m) {
+  if (!m) return '';
+  const title = m.title || m.name;
+  const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
+  return `<div class="hero">
+    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" alt="">` : ''}
+    <div class="blob b1"></div><div class="blob b2"></div>
+    <div class="shade"></div>
+    <div class="content">
+      <div class="tag">${m.media_type === 'tv' ? 'Featured TV Series' : 'Featured Movie'}</div>
+      <h1>${esc(title)}</h1>
+      <div class="meta">
+        ${rating ? `<span class="rate">${icon('star', 'inline')} ${rating}</span>` : ''}
+        ${m.release_date ? `<span>${year(m.release_date)}</span>` : m.first_air_date ? `<span>${year(m.first_air_date)}</span>` : ''}
+        ${m.vote_count ? `<span>${Number(m.vote_count).toLocaleString()} votes</span>` : ''}
+        ${m.original_language ? `<span class="dot"></span><span>${esc(m.original_language.toUpperCase())}</span>` : ''}
+      </div>
+      <p class="overview">${esc(m.overview || '')}</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#/watch/${m.media_type || (m.first_air_date ? 'tv' : 'movie')}/${m.id}">${icon('play')} Watch Now</a>
+        <a class="btn btn-glass" href="#/${m.media_type || (m.first_air_date ? 'tv' : 'movie')}/${m.id}">${icon('info')} Details</a>
+        <button class="btn btn-ghost wl-btn" data-m='${esc(JSON.stringify({ id: m.id, media_type: m.media_type || (m.first_air_date ? 'tv' : 'movie'), title, name: m.name, poster_path: m.poster_path, backdrop_path: m.backdrop_path, vote_average: m.vote_average, release_date: m.release_date, first_air_date: m.first_air_date }))}'>${icon('bookmark')} <span>Watchlist</span></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- Row nav + auto-bind ---------------- */
+function bindRowNavs() {
+  $$('.row-wrap').forEach(wrap => {
+    if (wrap.dataset.navBound) return;
+    wrap.dataset.navBound = '1';
+    const row = $('.row', wrap); if (!row) return;
+    $('.row-nav.prev', wrap)?.addEventListener('click', () => row.scrollBy({ left: -row.clientWidth * 0.8, behavior: 'smooth' }));
+    $('.row-nav.next', wrap)?.addEventListener('click', () => row.scrollBy({ left: row.clientWidth * 0.8, behavior: 'smooth' }));
+  });
+}
+
+/* ---------------- Views ---------------- */
+const SKELETON_ROW = `<div class="row">${Array.from({ length: 5 }, () => '<div class="card backdrop"><div class="skeleton" style="width:100%;height:100%"></div></div>').join('')}</div>`;
+const SKELETON_GRID = `<div class="grid">${Array.from({ length: 10 }, () => '<div class="card grid-card"><div class="skeleton" style="width:100%;height:100%"></div></div>').join('')}</div>`;
+
+function apiWrap(p) { return p.catch(e => { console.error(e); main.innerHTML = `<div class="empty-state"><h3>Something went wrong</h3><p class="muted">${esc(e.message)}. Try again in a moment.</p></div>`; }); }
+
+async function viewHome() {
+  main.innerHTML = `<div class="skeleton" style="height:300px;border-radius:20px"></div>${SKELETON_ROW}${SKELETON_ROW}${SKELETON_GRID}`;
+  const [trendingMovie, trendingTv, popular, topRated, nowPlaying, upcoming] = await Promise.all([
+    api('/trending/movie/day?language=en-US').then(r => r.results).catch(() => []),
+    api('/trending/tv/day?language=en-US').then(r => r.results).catch(() => []),
+    api('/movie/popular?language=en-US').then(r => r.results).catch(() => []),
+    api('/movie/top_rated?language=en-US').then(r => r.results).catch(() => []),
+    api('/movie/now_playing?language=en-US').then(r => r.results).catch(() => []),
+    api('/movie/upcoming?language=en-US').then(r => r.results).catch(() => []),
+  ]);
+  const hero = (trendingMovie[0] || popular[0]) && { ...(trendingMovie[0] || popular[0]), media_type: 'movie' };
+  const cont = Object.values(Store.progress.all())
+    .filter(p => p && p.duration && p.time > 30 && p.time / p.duration < 0.92)
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, 12);
+  const contRow = cont.length ? `<section style="margin-bottom:22px">
+    <div class="section-head"><h2 class="section-title">${icon('clock')} Continue Watching</h2><a class="view-all" href="#/history">History →</a></div>
+    <div class="row-wrap">
+      <button class="row-nav prev">${icon('chevL')}</button>
+      <button class="row-nav next">${icon('chevR')}</button>
+      <div class="row scrollbar-hide">${cont.map(continueCard).join('')}</div>
+    </div>
+  </section>` : '';
+  main.innerHTML = heroBanner(hero) +
+    contRow +
+    rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending') +
+    rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending') +
+    rowSection('Popular Movies', popular, '#/browse/movie') +
+    gridSection('Top Rated', topRated.slice(0, 10), '#/browse/movie?sort=top_rated') +
+    rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing') +
+    rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming') +
+    footerNote();
+  bindWatchlistButtons();
+}
+
+function parseQuery(q) { return Object.fromEntries(new URLSearchParams(q || '')); }
+
+async function viewBrowse(params) {
+  const type = params.id || 'movie';
+  const q = parseQuery(location.hash.split('?')[1]);
+  const sort = q.sort || 'popular';
+  const genreId = q.genre || '';
+  const title = { movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse';
+  const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
+  const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['on_the_air', 'On The Air']];
+  const sorts = type === 'movie' ? movieSorts : tvSorts;
+  main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${esc(title)}</h1>
+    <div class="filter-tabs">${sorts.map(s => `<button class="chip ${sort === s[0] ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${s[0]}${genreId ? '&genre=' + genreId : ''}'">${s[1]}</button>`).join('')}</div>
+    <div id="genreChips" class="filter-tabs"></div>
+    <div id="gridWrap">${SKELETON_GRID}</div>`;
+  api(`/genre/${type}/list?language=en-US`).then(g => {
+    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}'">All</button>` +
+      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}'">${esc(x.name)}</button>`).join('');
+    if (!genreId) {
+      const tiles = `<div class="genre-tiles">${g.genres.map(x => `<a class="genre-tile" href="#/browse/${type}?sort=${sort}&genre=${x.id}">${icon('film')} ${esc(x.name)}</a>`).join('')}</div>`;
+      $('#gridWrap').insertAdjacentHTML('beforebegin', tiles);
+    }
+  }).catch(() => {});
+  const items = await apiWrap((async () => {
+    if (genreId) return (await api(`/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sort === 'trending' ? 'popularity.desc' : sort === 'top_rated' ? 'vote_average.desc' : sort === 'now_playing' ? 'primary_release_date.desc' : sort === 'upcoming' ? 'primary_release_date.asc' : sort === 'on_the_air' ? 'first_air_date.desc' : 'popularity.desc'}`)).results;
+    if (sort === 'trending') return (await api(`/trending/${type}/day?language=en-US`)).results;
+    return (await api(`/${type}/${sort}?language=en-US`)).results;
+  })());
+  if (items) $('#gridWrap').innerHTML = `<div class="grid">${items.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`;
+  bindWatchlistButtons();
+}
+
+async function viewSearch() {
+  const q = parseQuery(location.hash.split('?')[1]);
+  const query = (q.q || '').trim();
+  main.innerHTML = `<div class="search-bar">${icon('search')}<input id="searchInput" placeholder="Search movies, TV shows..." value="${esc(query)}" autofocus></div>
+    <div class="filter-tabs" id="searchTabs">
+      <button class="chip active" data-st="multi">All</button>
+      <button class="chip" data-st="movie">Movies</button>
+      <button class="chip" data-st="tv">TV Shows</button>
+    </div>
+    <div id="searchResults">${query ? SKELETON_GRID : `<div class="empty-state">${icon('search')}<h3>Search anything</h3><p class="muted">Find movies and TV shows across the catalog.</p></div>`}</div>`;
+  const input = $('#searchInput'), tabs = $('#searchTabs');
+  let st = 'multi';
+  const run = debounce(async () => {
+    const v = input.value.trim(); if (!v) { $('#searchResults').innerHTML = `<div class="empty-state">${icon('search')}<h3>Search anything</h3><p class="muted">Start typing to find movies and shows.</p></div>`; return; }
+    history.replaceState(null, '', '#/search?q=' + encodeURIComponent(v));
+    $('#searchResults').innerHTML = SKELETON_GRID;
+    const path = st === 'multi' ? '/search/multi' : `/search/${st}`;
+    const r = await api(`${path}?query=${encodeURIComponent(v)}&language=en-US&include_adult=false`).catch(() => ({ results: [] }));
+    const items = r.results.filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.poster_path || x.backdrop_path));
+    $('#searchResults').innerHTML = items.length ? `<div class="grid">${items.map(m => backdropCard(m)).join('')}</div>` : `<div class="empty-state">${icon('search')}<h3>No results for “${esc(v)}”</h3><p class="muted">Try a different title or filter.</p></div>`;
+    bindWatchlistButtons();
+  }, 350);
+  input.addEventListener('input', run);
+  tabs.addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    st = b.dataset.st; $$('.chip', tabs).forEach(c => c.classList.toggle('active', c === b)); run();
+  });
+  if (query) { input.value = query; run(); }
+}
+
+async function viewDetail(params) {
+  const type = params.id ? (location.hash.includes('/tv/') ? 'tv' : 'movie') : 'movie';
+  const id = params.id;
+  main.innerHTML = `<div class="skeleton" style="height:340px;border-radius:20px"></div>${SKELETON_ROW}`;
+  const [d, credits, similar] = await Promise.all([
+    api(`/${type}/${id}?language=en-US&append_to_response=external_ids,videos`).catch(() => null),
+    api(`/${type}/${id}/credits?language=en-US`).catch(() => ({ cast: [] })),
+    api(`/${type}/${id}/similar?language=en-US`).then(r => r.results).catch(() => []),
+  ]);
+  if (!d) { main.innerHTML = `<div class="empty-state"><h3>Title not found</h3></div>`; return; }
+  const title = d.title || d.name;
+  const trailer = (d.videos?.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube');
+  const cast = credits.cast?.slice(0, 12) || [];
+  const genres = (d.genres || []).map(g => g.name);
+  const meta = [];
+  if (d.vote_average) meta.push(`<span class="rate">${icon('star', 'inline')} ${Number(d.vote_average).toFixed(1)}</span>`);
+  if (d.release_date) meta.push(`<span>${year(d.release_date)}</span>`); else if (d.first_air_date) meta.push(`<span>${year(d.first_air_date)}</span>`);
+  if (d.runtime) meta.push(`<span>${d.runtime}m</span>`);
+  if (d.number_of_seasons) meta.push(`<span>${d.number_of_seasons} seasons</span>`);
+  if (d.status) meta.push(`<span>${esc(d.status)}</span>`);
+  const wl = Store.watchlist.has(Number(id), type);
+  main.innerHTML = `
+    <div class="detail-hero">
+      ${d.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(d.backdrop_path)}" alt="">` : ''}
+      <div class="shade"></div>
+      <div class="content">
+        <div class="poster">${d.poster_path ? `<img src="${IMG_POSTER(d.poster_path)}" alt="">` : ''}</div>
+        <div class="detail-info">
+          <h1>${esc(title)}</h1>
+          <div class="meta">${meta.join('<span class="dot"></span>')}</div>
+          ${genres.length ? `<div class="genres">${genres.map(g => `<span class="chip" style="padding:4px 12px;font-size:12px">${esc(g)}</span>`).join('')}</div>` : ''}
+          <p class="overview">${esc(d.overview || '')}</p>
+          <div class="detail-actions">
+            <a class="btn btn-primary" href="#/watch/${type}/${id}${type === 'tv' && d.seasons?.length ? '/1/1' : ''}">${icon('play')} Watch Now</a>
+            ${trailer ? `<button class="btn btn-glass" id="trailerBtn">${icon('film')} Trailer</button>` : ''}
+            <button class="btn btn-ghost wl-btn" data-m='${esc(JSON.stringify({ id: Number(id), media_type: type, title, name: d.name, poster_path: d.poster_path, backdrop_path: d.backdrop_path, vote_average: d.vote_average, release_date: d.release_date, first_air_date: d.first_air_date }))}'>${icon('bookmark')} <span>${wl ? 'In Watchlist ✓' : 'Watchlist'}</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    ${type === 'tv' ? `<div id="tvSection"><div class="detail-panel"><div class="skeleton" style="height:160px"></div></div></div>` : ''}
+    ${cast.length ? `<div class="detail-panel"><h3>${icon('users')} Cast</h3><div class="cast-row scrollbar-hide">${cast.map(c => `<div class="cast-card"><div class="avatar">${c.profile_path ? `<img loading="lazy" src="${IMG_FACE(c.profile_path)}" alt="">` : ''}</div><div class="name">${esc(c.name || '')}</div><div class="role">${esc(c.character || '')}</div></div>`).join('')}</div></div>` : ''}
+    ${rowSection('Similar Titles', similar, `#/browse/${type}?sort=similar&id=${id}`)}
+    ${footerNote()}`;
+  bindWatchlistButtons();
+  $('#trailerBtn')?.addEventListener('click', () => { const v = trailer; if (v) window.open(`https://www.youtube.com/embed/${v.key}?autoplay=1`, '_blank', 'noopener'); });
+  if (type === 'tv') renderTvSection(d, id);
+}
+
+async function renderTvSection(d, id) {
+  const seasons = (d.seasons || []).filter(s => s.season_number > 0 && s.episode_count > 0);
+  const el = $('#tvSection'); if (!el) return;
+  if (!seasons.length) { el.innerHTML = ''; return; }
+  let seasonNum = seasons[0].season_number;
+  el.innerHTML = `<div class="detail-panel"><h3>${icon('tv')} Episodes</h3>
+    <div class="season-tabs scrollbar-hide">${seasons.map(s => `<button class="chip" data-s="${s.season_number}">Season ${s.season_number}</button>`).join('')}</div>
+    <div class="row-wrap">
+      <button class="row-nav prev">${icon('chevL')}</button>
+      <button class="row-nav next">${icon('chevR')}</button>
+      <div class="episode-row scrollbar-hide" id="epRow"><div class="skeleton" style="width:268px;height:190px"></div></div>
+    </div></div>`;
+  const loadSeason = async (n) => {
+    seasonNum = n; $$('.season-tabs .chip').forEach(c => c.classList.toggle('active', +c.dataset.s === n));
+    const row = $('#epRow'); row.innerHTML = '<div class="skeleton" style="width:268px;height:190px"></div><div class="skeleton" style="width:268px;height:190px"></div>';
+    const data = await api(`/tv/${id}/season/${n}?language=en-US`).catch(() => null);
+    if (!data) { row.innerHTML = '<div class="muted" style="padding:20px">Could not load episodes.</div>'; return; }
+    row.innerHTML = data.episodes.map(ep => episodeCard(ep, id, n)).join('');
+  };
+  el.querySelector('.season-tabs').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) loadSeason(+b.dataset.s); });
+  loadSeason(seasonNum);
+}
+
+function episodeCard(ep, tvId, season) {
+  const key = `tv-${tvId}`;
+  const p = Store.progress.get(key);
+  const watched = p && p.season === season && p.episode === ep.episode_number && p.duration && p.time / p.duration > 0.85;
+  return `<div class="ep-card" onclick="location.hash='#/watch/tv/${tvId}/${season}/${ep.episode_number}'">
+    <div class="thumb">
+      ${ep.still_path ? `<img loading="lazy" src="${IMG_BACKDROP(ep.still_path)}" alt="">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('tv')}</div>`}
+      <div class="num">E${ep.episode_number}</div>
+      ${watched ? '<div class="watched">✓ Watched</div>' : ''}
+    </div>
+    <div class="body">
+      <div class="t">${esc(ep.name || `Episode ${ep.episode_number}`)}</div>
+      <div class="d">${ep.runtime ? ep.runtime + 'm · ' : ''}${esc(ep.overview || '')}</div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- WATCH / PLAYER ---------------- */
+async function viewWatch(params) {
+  const isTv = params.season !== undefined;
+  const id = params.id;
+  const season = isTv ? +params.season : null;
+  const episode = isTv ? +params.episode : null;
+  const type = isTv ? 'tv' : 'movie';
+  main.innerHTML = `<div id="playerShell" class="player-wrap" style="margin-bottom:22px"><div class="spinner" style="margin:180px auto"></div></div>
+    <div id="watchMeta"><div class="skeleton" style="height:40px;width:60%"></div></div><div id="watchServers"></div><div id="watchEps"></div>${footerNote()}`;
+  const [d, servers] = await Promise.all([
+    api(`/${type}/${id}?language=en-US`).catch(() => null),
+    fetch(`/api/stream?type=${type}&id=${id}${isTv ? `&season=${season}&episode=${episode}` : ''}`).then(r => r.json()).catch(() => ({ servers: [] })),
+  ]);
+  const title = d ? (d.title || d.name) : (type === 'tv' ? 'TV Show' : 'Movie');
+  const epName = isTv ? (season + '×' + episode) : '';
+  $('#watchMeta').innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+    <a class="btn btn-ghost" style="padding:8px 12px" href="#/${type}/${id}">${icon('arrowL')}</a>
+    <div><h1 class="page-title" style="font-size:22px">${esc(title)}</h1>${epName ? `<div class="muted" style="font-size:13px">Season ${season} · Episode ${episode}</div>` : `<div class="muted" style="font-size:13px">${esc(d?.tagline || '')}</div>`}</div>
+  </div>`;
+  if (isTv) Store.history.add({ key: `tv-${id}`, type: 'tv', id: +id, title, poster: d?.poster_path, backdrop: d?.backdrop_path, season, episode, ts: Date.now() });
+  else Store.history.add({ key: `movie-${id}`, type: 'movie', id: +id, title, poster: d?.poster_path, backdrop: d?.backdrop_path, ts: Date.now() });
+  if (isTv) {
+    setupNextEpisode(d, id, season, episode);
+    renderWatchEpisodes(d, id, season, episode);
+  }
+
+  const srv = $('#watchServers');
+  if (!servers.servers || !servers.servers.length) {
+    srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="muted">No playable sources found for this title right now. Try again later.</div></div>`;
+    return;
+  }
+  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}"><span class="srv-dot ${s.type}"></span>${esc(s.name)}</button>`).join('')}</div>
+    <div class="muted" style="font-size:12px;margin-top:10px">${servers.servers.some(s => s.type === 'embed') ? 'Note: “Embed” servers render a third-party player which may display ads. “Direct” servers are ad-free.' : 'All sources are direct & ad-free.'}</div></div>`;
+  const tabs = $('#srvTabs');
+  let player = null;
+  const select = (i) => {
+    const s = servers.servers[i];
+    $$('.server-tab', tabs).forEach(t => t.classList.toggle('active', +t.dataset.i === i));
+    if (player) { player.destroy(); player = null; }
+    $('#playerShell').innerHTML = '';
+    if (s.type === 'direct') player = new GlassPlayer($('#playerShell'), s, { media: d, type, id, season, episode, title, onNext: () => goNext() });
+    else mountEmbed($('#playerShell'), s);
+  };
+  tabs.addEventListener('click', e => { const b = e.target.closest('.server-tab'); if (b) select(+b.dataset.i); });
+  select(0);
+  bindWatchlistButtons();
+}
+
+function mountEmbed(shell, s) {
+  shell.innerHTML = `<iframe src="${esc(s.url)}" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" referrerpolicy="origin"></iframe>`;
+}
+
+let goNext = () => {};
+async function setupNextEpisode(d, id, curSeason, curEpisode) {
+  try {
+    const seasons = (d.seasons || []).filter(s => s.season_number > 0 && s.episode_count > 0);
+    const data = await api(`/tv/${id}/season/${curSeason}?language=en-US`).catch(() => null);
+    if (data && data.episodes && data.episodes.length) {
+      const idx = data.episodes.findIndex(e => e.episode_number === curEpisode);
+      if (idx >= 0 && idx < data.episodes.length - 1) {
+        const nxt = data.episodes[idx + 1].episode_number;
+        goNext = () => navigate(`#/watch/tv/${id}/${curSeason}/${nxt}`);
+        return;
+      }
+    }
+    const si = seasons.findIndex(s => s.season_number === curSeason);
+    if (si >= 0 && si < seasons.length - 1) {
+      const nextS = seasons[si + 1];
+      goNext = () => navigate(`#/watch/tv/${id}/${nextS.season_number}/1`);
+      return;
+    }
+  } catch (_) {}
+  goNext = () => toast('You have reached the last available episode');
+}
+
+async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
+  const seasons = (d.seasons || []).filter(s => s.season_number > 0 && s.episode_count > 0);
+  const el = $('#watchEps'); if (!el || !seasons.length) { el?.remove(); return; }
+  el.innerHTML = `<div class="detail-panel"><h3>${icon('tv')} Episodes</h3>
+    <div class="season-tabs scrollbar-hide">${seasons.map(s => `<button class="chip ${s.season_number === curSeason ? 'active' : ''}" data-s="${s.season_number}">Season ${s.season_number}</button>`).join('')}</div>
+    <div class="row-wrap">
+      <button class="row-nav prev">${icon('chevL')}</button>
+      <button class="row-nav next">${icon('chevR')}</button>
+      <div class="episode-row scrollbar-hide" id="watchEpRow"></div>
+    </div></div>`;
+  const row = $('#watchEpRow');
+  const load = async (n) => {
+    $$('.season-tabs .chip', el).forEach(c => c.classList.toggle('active', +c.dataset.s === n));
+    row.innerHTML = '<div class="skeleton" style="width:268px;height:190px"></div>';
+    const data = await api(`/tv/${id}/season/${n}?language=en-US`).catch(() => null);
+    if (!data) { row.innerHTML = ''; return; }
+    row.innerHTML = data.episodes.map(ep => episodeCard(ep, id, n)).join('');
+    if (n === curSeason) {
+      const idx = data.episodes.findIndex(e => e.episode_number === curEpisode);
+      if (idx >= 0) row.children[idx]?.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
+    }
+  };
+  el.querySelector('.season-tabs').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) load(+b.dataset.s); });
+  load(curSeason);
+}
+
+/* ---------------- GLASS PLAYER (hls.js, ad-free direct sources) ---------------- */
+class GlassPlayer {
+  constructor(shell, server, ctx) {
+    this.shell = shell; this.server = server; this.ctx = ctx;
+    this.hls = null; this.timer = null; this.volume = store.get('sg_vol', 1);
+    this.quality = null;
+    this.build();
+    this.load();
+  }
+  build() {
+    const s = this.shell;
+    s.innerHTML = `<div class="player-wrap" style="margin:0">
+      <div class="player-shell" id="ps">
+        <video id="video" playsinline></video>
+        <div class="center-big" id="bigPlay">${icon('play')}</div>
+        <div class="pc-top">
+          <div class="pc-title"><span class="pc-badge">DIRECT</span><span id="pcTitle"></span></div>
+          <button class="pc-btn" id="pcPip" title="Picture in Picture">${icon('movie')}</button>
+        </div>
+        <div class="player-controls" id="controls">
+          <div class="pc-row" style="padding-bottom:4px">
+            <div class="pc-progress" id="progress"><div class="track"><div class="buffered" id="buffered"></div><div class="fill" id="fill"></div><div class="knob" id="knob"></div></div></div>
+          </div>
+          <div class="pc-row">
+            <button class="pc-btn pc-play" id="playBtn">${icon('pause')}</button>
+            <button class="pc-btn" id="volBtn">${icon('volume')}</button>
+            <span class="pc-time"><span id="cur">0:00</span> / <span id="dur">0:00</span></span>
+            <div style="flex:1"></div>
+            <button class="pc-btn" id="speedBtn" title="Playback speed">${icon('speed')} <span id="speedLabel" style="font-size:11px;font-weight:700">1x</span></button>
+            <button class="pc-btn" id="qBtn" title="Quality">${icon('gear')} <span id="qLabel" style="font-size:11px;font-weight:700">Auto</span></button>
+            <a class="pc-btn" id="dlBtn" title="Download" target="_blank" rel="noopener">${icon('download')}</a>
+            <button class="pc-btn" id="fsBtn" title="Fullscreen">${icon('fullscreen')}</button>
+          </div>
+        </div>
+        <div class="player-error" id="perr"><div class="msg">Could not load this source.</div><div class="sub">Try another server above, or refresh the page.</div></div>
+      </div>
+    </div>`;
+    this.video = $('#video', s); this.perr = $('#perr', s);
+    $('#pcTitle', s).textContent = this.ctx.title || '';
+    $('#dlBtn', s).href = this.server.proxyUrl || this.server.url;
+    this.bindEvents();
+  }
+  bindEvents() {
+    const s = this.shell, v = this.video;
+    const wrap = $('.player-wrap', s);
+    $('#playBtn', s).addEventListener('click', () => v.paused ? v.play() : v.pause());
+    $('#bigPlay', s).addEventListener('click', () => { v.play(); $('#bigPlay', s).style.display = 'none'; });
+    wrap.addEventListener('dblclick', () => this.toggleFs());
+    $('#fsBtn', s).addEventListener('click', () => this.toggleFs());
+    $('#pcPip', s).addEventListener('click', async () => { try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); else await v.requestPictureInPicture(); } catch {} });
+    $('#volBtn', s).addEventListener('click', () => { v.muted = !v.muted; this.syncVol(); });
+    $('#progress', s).addEventListener('click', (e) => { const r = e.currentTarget.getBoundingClientRect(); if (v.duration) v.currentTime = ((e.clientX - r.left) / r.width) * v.duration; });
+    $('#speedBtn', s).addEventListener('click', () => {
+      const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+      v.playbackRate = speeds[(speeds.indexOf(v.playbackRate) + 1) % speeds.length] || 1;
+      $('#speedLabel', s).textContent = v.playbackRate + 'x';
+    });
+    $('#qBtn', s).addEventListener('click', () => {
+      const levels = this.hls?.levels || [];
+      if (!levels.length) { toast('No alternate qualities available'); return; }
+      const heights = [...new Set(levels.map(l => l.height).filter(Boolean))].sort((a, b) => b - a);
+      const cur = this.quality || heights[0] || 0;
+      const idx = heights.indexOf(cur);
+      const next = heights[(idx + 1) % heights.length] || null;
+      this.hls.currentLevel = next ? levels.findIndex(l => (l.height || 0) === next) : -1;
+      this.quality = next;
+      $('#qLabel', s).textContent = next ? next + 'p' : 'Auto';
+    });
+    v.addEventListener('click', () => v.paused ? v.play() : v.pause());
+    v.addEventListener('play', () => { $('#playBtn', s).innerHTML = icon('pause'); $('#bigPlay', s).style.display = 'none'; this.ctrlShow(true); });
+    v.addEventListener('pause', () => { $('#playBtn', s).innerHTML = icon('play'); $('#bigPlay', s).style.display = 'flex'; });
+    v.addEventListener('volumechange', () => this.syncVol());
+    v.addEventListener('timeupdate', () => {
+      $('#cur', s).textContent = fmtTime(v.currentTime);
+      const d = v.duration || 0; $('#dur', s).textContent = fmtTime(d);
+      $('#fill', s).style.transform = `scaleX(${d ? v.currentTime / d : 0})`;
+      $('#knob', s).style.left = `${d ? (v.currentTime / d) * 100 : 0}%`;
+      this.saveProgress();
+    });
+    v.addEventListener('progress', () => {
+      const b = v.buffered; if (b.length && v.duration) $('#buffered', s).style.transform = `scaleX(${b.end(b.length - 1) / v.duration})`;
+    });
+    v.addEventListener('ended', () => { this.onEnded(); });
+    v.addEventListener('error', () => { if (!this.perr.classList.contains('show')) this.perr.classList.add('show'); });
+    this.ctrlTimer = null;
+    const show = (on) => this.ctrlShow(on);
+    wrap.addEventListener('mousemove', () => show(true));
+    wrap.addEventListener('mouseleave', () => show(false));
+    document.addEventListener('keydown', (e) => this.hotkey(e));
+  }
+  ctrlShow(on) {
+    const c = $('#controls', this.shell);
+    if (on) { c.classList.add('show'); clearTimeout(this.ctrlTimer); this.ctrlTimer = setTimeout(() => { if (!this.video.paused) c.classList.remove('show'); }, 3200); }
+  }
+  syncVol() {
+    const v = this.video;
+    $('#volBtn', this.shell).innerHTML = icon(v.muted || v.volume === 0 ? 'mute' : 'volume');
+    store.set('sg_vol', v.volume);
+  }
+  toggleFs() {
+    const wrap = $('.player-wrap', this.shell);
+    if (document.fullscreenElement) document.exitFullscreen(); else wrap.requestFullscreen?.().catch(() => {});
+  }
+  hotkey(e) {
+    if (!this.shell.isConnected) return;
+    const v = this.video, t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    switch (e.key) {
+      case ' ': case 'k': e.preventDefault(); v.paused ? v.play() : v.pause(); break;
+      case 'ArrowRight': v.currentTime += 5; break;
+      case 'ArrowLeft': v.currentTime -= 5; break;
+      case 'ArrowUp': e.preventDefault(); v.volume = clamp(v.volume + 0.1, 0, 1); v.muted = false; break;
+      case 'ArrowDown': e.preventDefault(); v.volume = clamp(v.volume - 0.1, 0, 1); break;
+      case 'f': this.toggleFs(); break;
+      case 'm': v.muted = !v.muted; this.syncVol(); break;
+      case 'n': if (this.ctx.onNext) this.ctx.onNext(); break;
+    }
+  }
+  async load() {
+    const url = this.server.proxyUrl || this.server.url;
+    this.video.volume = this.volume;
+    const resume = this.ctx.type === 'tv' ? Store.progress.get(`tv-${this.ctx.id}`) : Store.progress.get(`movie-${this.ctx.id}`);
+    if (resume && this.ctx.type === 'tv' && (resume.season !== this.ctx.season || resume.episode !== this.ctx.episode)) resume.time = 0;
+    const isHls = /\.m3u8(\?|$)/i.test(url) || this.server.hls;
+    if (isHls && window.Hls?.isSupported()) {
+      this.hls = new Hls({ maxBufferLength: 30, enableWorker: true });
+      this.hls.loadSource(url);
+      this.hls.attachMedia(this.video);
+      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const levels = this.hls.levels.map(l => l.height).filter(Boolean);
+        const best = Math.max(...levels, 0);
+        if (best) this.hls.currentLevel = levels.indexOf(best);
+        this.hls.on(Hls.Events.LEVEL_SWITCHED, (_e, d) => { this.quality = d.height || null; $('#qLabel', this.shell).textContent = this.quality ? this.quality + 'p' : 'Auto'; });
+      });
+      this.hls.on(Hls.Events.ERROR, (_e, d) => {
+        if (d.fatal) { if (d.type === 'networkError') this.hls.startLoad(); else if (d.type === 'mediaError') this.hls.recoverMediaError(); else this.perr.classList.add('show'); }
+      });
+    } else if (isHls && window.Hls) {
+      this.perr.classList.add('show'); return;
+    } else {
+      this.video.src = url;
+    }
+    if (resume && resume.time && resume.duration && resume.time / resume.duration < 0.85 && resume.time > 15) {
+      this.video.addEventListener('loadedmetadata', () => { this.video.currentTime = resume.time; }, { once: true });
+    }
+    this.video.play().catch(() => {});
+  }
+  saveProgress() {
+    const v = this.video; if (!v.duration) return;
+    const key = this.ctx.type === 'tv' ? `tv-${this.ctx.id}` : `movie-${this.ctx.id}`;
+    Store.progress.set(key, {
+      type: this.ctx.type, id: this.ctx.id, season: this.ctx.season, episode: this.ctx.episode,
+      time: v.currentTime, duration: v.duration, ts: Date.now(),
+      title: this.ctx.title,
+      backdrop_path: this.ctx.media?.backdrop_path || null,
+    });
+  }
+  onEnded() {
+    const p = Store.progress.get(this.ctx.type === 'tv' ? `tv-${this.ctx.id}` : `movie-${this.ctx.id}`);
+    if (p) { p.time = p.duration; Store.progress.set(this.ctx.type === 'tv' ? `tv-${this.ctx.id}` : `movie-${this.ctx.id}`, p); }
+    if (this.ctx.onNext) setTimeout(() => this.ctx.onNext(), 600);
+    else { toast('Finished! 🎉'); this.perr.classList.remove('show'); const c = $('#controls', this.shell); c.classList.add('show'); }
+  }
+  destroy() {
+    clearTimeout(this.ctrlTimer);
+    this.hls?.destroy(); this.hls = null;
+    this.video?.pause(); this.video?.removeAttribute('src');
+    this.video?.load();
+  }
+}
+
+/* ---------------- WATCHLIST / HISTORY / LEGAL ---------------- */
+async function viewWatchlist() {
+  const items = Store.watchlist.all();
+  main.innerHTML = `<h1 class="page-title" style="margin-bottom:20px">${icon('bookmark', 'inline')} Watchlist</h1>` +
+    (items.length ? `<div class="grid">${items.map(m => backdropCard({ ...m, media_type: m.type })).join('')}</div>` : `<div class="empty-state">${icon('bookmark')}<h3>Your watchlist is empty</h3><p class="muted">Tap the bookmark icon on any title to save it here.</p></div>`) +
+    footerNote();
+  bindWatchlistButtons();
+}
+
+function viewHistory() {
+  const items = Store.history.all();
+  main.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px"><h1 class="page-title">${icon('clock', 'inline')} History</h1>${items.length ? `<button class="btn btn-ghost" id="clearHist">Clear history</button>` : ''}</div>` +
+    (items.length ? `<div class="grid">${items.map(h => {
+      const m = { ...h, media_type: h.type, title: h.title, name: h.title };
+      const href = h.type === 'tv' ? `#/watch/tv/${h.id}/${h.season}/${h.episode}` : `#/watch/movie/${h.id}`;
+      return `<div class="card grid-card" onclick="location.hash='${href.slice(1)}'">${h.backdrop ? `<img loading="lazy" src="${IMG_BACKDROP(h.backdrop)}" alt="">` : ''}<div class="glass"><div class="title">${esc(h.title)}</div><div class="sub">${h.type === 'tv' ? `S${h.season}·E${h.episode}` : 'Movie'} · ${new Date(h.ts).toLocaleDateString()}</div></div>${progressFlag(m)}</div>`;
+    }).join('')}</div>` : `<div class="empty-state">${icon('clock')}<h3>No watch history yet</h3><p class="muted">Titles you watch will appear here.</p></div>`) +
+    footerNote();
+  $('#clearHist')?.addEventListener('click', () => { Store.history.clear(); viewHistory(); toast('History cleared'); });
+}
+
+function viewLegal() {
+  main.innerHTML = `<div class="detail-panel" style="max-width:760px;margin:0 auto">
+    <h1 class="page-title" style="margin-bottom:16px">Legal / DMCA</h1>
+    <p class="muted" style="line-height:1.8;font-size:14px">
+      ${esc(SITE_NAME)} does not host, store, upload or distribute any media files, video content or copyrighted material on its servers.
+      All content displayed is streamed from third-party providers, and ${esc(SITE_NAME)} merely links to publicly available media.
+      <br><br>If you believe any content infringes your copyright, contact us with the details and the offending links will be removed promptly.
+      <br><br>This project is for educational purposes. Users are responsible for complying with the laws of their jurisdiction.
+    </p></div>`;
+}
+
+/* ---------------- WATCHLIST BUTTONS ---------------- */
+function bindWatchlistButtons() {
+  $$('.wl-btn').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); e.preventDefault();
+      let m; try { m = JSON.parse(b.dataset.m); } catch { return; }
+      const added = Store.watchlist.toggle(m);
+      const span = b.querySelector('span'); if (span) span.textContent = added ? 'In Watchlist ✓' : 'Watchlist';
+      b.closest('.card')?.classList.toggle('in-wl', added);
+      toast(added ? 'Added to watchlist' : 'Removed from watchlist');
+    };
+  });
+}
+
+/* ---------------- Ctrl+K glass search popup ---------------- */
+const searchCache = new Map();
+let popOpen = false;
+function buildSearchPopup() {
+  if (document.getElementById('searchOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'search-overlay';
+  overlay.id = 'searchOverlay';
+  overlay.innerHTML = `<div class="search-pop">
+    <div class="pop-bar">${icon('search')}<input id="popInput" placeholder="Search movies & TV shows…" autocomplete="off" spellcheck="false"><button class="pop-close" id="popClose" aria-label="Close">${icon('x')}</button></div>
+    <div class="pop-results" id="popResults"><div class="pop-hint">Type to search — try “inception” or “game of thrones”</div></div>
+    <div class="pop-footer">${icon('gear')} <kbd>Ctrl</kbd>+<kbd>K</kbd> to open · <kbd>Esc</kbd> to close · <kbd>Enter</kbd> to view all</div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const input = $('#popInput');
+  const results = $('#popResults');
+  let timer = null, items = [], focused = -1;
+  const close = () => { overlay.classList.remove('open'); popOpen = false; };
+  $('#popClose', overlay).addEventListener('click', close);
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+  const render = (list) => {
+    focused = -1;
+    results.innerHTML = list.length ? '' : '<div class="pop-hint">No results — try a different title</div>';
+    list.forEach((it, i) => {
+      const el = document.createElement('div');
+      el.className = 'pop-item' + (i === focused ? ' focused' : '');
+      el.innerHTML = `<div class="thumb">${it.poster_path ? `<img src="${IMG_POSTER(it.poster_path)}" alt="">` : ''}</div>
+        <div class="info"><div class="t">${esc(it.title || it.name || '')}</div><div class="d">${it.release_date ? year(it.release_date) : it.first_air_date ? year(it.first_air_date) : ''}${it.vote_average ? ' · ★ ' + Number(it.vote_average).toFixed(1) : ''}</div></div>
+        <span class="type-chip ${it.media_type === 'tv' ? 'tv' : ''}">${it.media_type === 'tv' ? 'TV' : 'MOVIE'}</span>`;
+      el.addEventListener('click', () => { close(); navigate(`#/${it.media_type}/${it.id}`); });
+      results.appendChild(el);
+    });
+    items = list;
+  };
+  const run = async () => {
+    const q = input.value.trim();
+    if (q.length < 2) { render([]); results.innerHTML = '<div class="pop-hint">Type to search — try “inception” or “game of thrones”</div>'; return; }
+    if (searchCache.has(q)) { render(searchCache.get(q)); return; }
+    const r = await api(`/search/multi?query=${encodeURIComponent(q)}&language=en-US&include_adult=false`).catch(() => ({ results: [] }));
+    const list = r.results.filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.poster_path || x.backdrop_path)).slice(0, 8);
+    searchCache.set(q, list); if (searchCache.size > 60) searchCache.clear();
+    render(list);
+  };
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 220); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!items.length) return;
+      focused = (focused + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      $$('.pop-item', results).forEach((el, i) => el.classList.toggle('focused', i === focused));
+    } else if (e.key === 'Enter') {
+      const q = input.value.trim();
+      if (focused >= 0 && items[focused]) { close(); navigate(`#/${items[focused].media_type}/${items[focused].id}`); }
+      else if (q) { close(); navigate(`#/search?q=${encodeURIComponent(q)}`); }
+    } else if (e.key === 'Escape') { close(); }
+  });
+  window.openSearch = () => { overlay.classList.add('open'); popOpen = true; setTimeout(() => input.focus(), 60); input.select?.(); };
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (typeof window.openSearch !== 'function') buildSearchPopup();
+    window.openSearch();
+  }
+});
+
+/* ---------------- BOOT ---------------- */
+function boot() {
+  buildSearchPopup();
+  new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
+  router();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

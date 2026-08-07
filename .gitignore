@@ -1,0 +1,8 @@
+# Never commit secrets
+.deploy.env
+.env
+
+# Misc
+node_modules/
+*.log
+.DS_Store
