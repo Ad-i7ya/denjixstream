@@ -474,6 +474,25 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .section-head .view-all { color: var(--text-muted); font-size: 13px; font-weight: 500; transition: color .2s; }
 .section-head .view-all:hover { color: #fff; }
 .muted { color: var(--text-muted); }
+
+/* ---------- Cinematic scroll-reveal ----------
+   Section titles, rows and grids enter with a soft rise+fade as they scroll
+   into view — the reading-inverse of the hero scroll-out. The hidden state
+   is applied by JS (bindReveals) only when IntersectionObserver is present,
+   so no-JS and reduced-motion users always see content. */
+.reveal-ready {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity .7s cubic-bezier(.22, 1, .36, 1), transform .7s cubic-bezier(.22, 1, .36, 1);
+}
+.reveal-ready.in-view { opacity: 1; transform: none; }
+@media (pointer: fine) { .reveal-ready { will-change: opacity, transform; } }
+/* the title lands a beat before its row/grid (subtle stagger) */
+.section-head.reveal-ready { transition-delay: .02s; }
+.row-wrap.reveal-ready, .grid.reveal-ready, .cat-grid.reveal-ready { transition-delay: .09s; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready, .reveal-ready.in-view { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
 .chip {
   padding: 7px 15px; border-radius: 999px; font-size: 13px; font-weight: 500;
   background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.05));

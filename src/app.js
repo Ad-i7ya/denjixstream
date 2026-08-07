@@ -162,6 +162,10 @@ const VEIL_BLUR = (window.innerWidth || 1200) < 768 ? 10 : 16;
 async function router(restoreY) {
   const tok = ++routeTok;
   stopHeroTimer();
+  /* drop the reveal observer before the incoming render replaces the DOM —
+     otherwise detached, never-intersected elements stay in the module-level
+     IO forever (it is lazily recreated by the next scheduleReveals pass) */
+  if (revealIO) { revealIO.disconnect(); revealIO = null; }
   /* tear down any leftover episode overlay + its cache on navigation */
   const oldOv = document.getElementById('epOverlay');
   if (oldOv) { oldOv.remove(); epOpen = false; epCloseFn = null; document.body.classList.remove('ep-open'); epCache = {}; }
@@ -884,6 +888,45 @@ function bindRowNavs() {
       updateRowArrows(wrap, row);
     }
   });
+}
+
+/* Cinematic scroll-reveal: section titles, rows and grids below the fold
+   start faint + slightly risen and glide into place as they enter the
+   viewport — the reading-inverse of the hero scroll-out collapse. The
+   hidden state is only ever applied here (JS + IntersectionObserver), so
+   no-JS and reduced-motion users always see content instantly. Self-healing:
+   the boot MutationObserver re-runs this after every route render and
+   load-more append. Elements already on screen at bind get in-view directly
+   (never a flash). */
+let revealIO = null;
+let revealDirty = false;
+function bindReveals() {
+  if (!('IntersectionObserver' in window)) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!revealIO) revealIO = new IntersectionObserver((ents) => ents.forEach((en) => {
+    if (en.isIntersecting) {
+      en.target.classList.remove('reveal-ready');
+      en.target.classList.add('in-view');
+      revealIO.unobserve(en.target);
+    }
+  }), { threshold: 0.08, rootMargin: '0px 0px -6% 0px' });
+  const vh = window.innerHeight || 800;
+  $$('.section-head, .row-wrap, .grid, .cat-grid').forEach((el) => {
+    if (el.classList.contains('in-view') || el.dataset.revealBound) return;
+    el.dataset.revealBound = '1';
+    const r = el.getBoundingClientRect();
+    if (r.top < vh * 0.94 && r.bottom > 0) { el.classList.add('in-view'); return; }
+    el.classList.add('reveal-ready');
+    revealIO.observe(el);
+  });
+}
+/* at most one reveal pass per frame (MutationObserver can fire several times
+   per render burst) — the revealBound guard already makes re-runs cheap, this
+   caps the rect reads during busy renders */
+function scheduleReveals() {
+  if (revealDirty) return;
+  revealDirty = true;
+  requestAnimationFrame(() => { revealDirty = false; bindReveals(); });
 }
 
 /* ---------------- Views ---------------- */
@@ -2043,7 +2086,7 @@ window.addEventListener('popup', (e) => {
 function boot() {
   initSmoothScroll();
   buildSearchPopup();
-  new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
+  new MutationObserver(() => { bindRowNavs(); scheduleReveals(); }).observe(main, { childList: true, subtree: true });
   pauseShimmerOffscreen();
   loadSiteConfig();
   /* keep admin-driven site controls live: refresh on navigation, on tab focus,
