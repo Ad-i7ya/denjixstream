@@ -3,8 +3,8 @@
    Layered blur + saturation, specular highlights, spring physics
    ============================================================ */
 :root {
-  --bg: #0a0a0e;
-  --bg-grad-top: #16161c;
+  --bg: #050508;
+  --bg-grad-top: #0c0c12;
   --glass: rgba(255, 255, 255, 0.08);
   --glass-strong: rgba(255, 255, 255, 0.15);
   --glass-border: rgba(255, 255, 255, 0.16);
@@ -180,7 +180,7 @@ body.resizing * { cursor: col-resize !important; }
   min-width: 0; max-width: 100%; overflow-x: hidden; overflow-x: clip;
   transition: margin-left .45s var(--ease-smooth);
   min-height: 100vh; position: relative;
-  background: linear-gradient(180deg, var(--bg-grad-top) 0%, var(--bg) 45%, #07070a 100%);
+  background: linear-gradient(180deg, var(--bg-grad-top) 0%, var(--bg) 45%, #030305 100%);
 }
 /* Floating logo chip — always visible so every page has a home button */
 .float-logo {
