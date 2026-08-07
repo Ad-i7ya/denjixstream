@@ -393,6 +393,7 @@ async function viewBrowse(params) {
   const sort = q.sort || 'popular';
   const genreId = q.genre || '';
   const decade = /^\d{4}$/.test(q.decade || '') ? q.decade : '';
+  const simId = /^\d+$/.test(q.id || '') ? q.id : '';
   const title = { movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse';
   const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
   const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['on_the_air', 'On The Air']];
@@ -419,6 +420,7 @@ async function viewBrowse(params) {
       return (await api(qs)).results;
     }
     if (decade) return (await api(`/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}`)).results;
+    if (sort === 'similar' && simId) return (await api(`/${type}/${simId}/similar?language=en-US`)).results;
     if (sort === 'trending') return (await api(`/trending/${type}/day?language=en-US`)).results;
     return (await api(`/${type}/${sort}?language=en-US`)).results;
   })());
