@@ -395,27 +395,40 @@ try {
 (function initSidebarResize() {
   const el = $('.app');
   const min = 212, max = 420;
-  const apply = (w) => {
-    const cw = clamp(w, min, max);
-    el.style.setProperty('--sbw', cw + 'px');
-    try { localStorage.setItem('dx_sidebar_w', String(cw)); } catch {}
-  };
-  try { const saved = +localStorage.getItem('dx_sidebar_w'); if (saved >= min && saved <= max) apply(saved); } catch {}
+  const setW = (w) => el.style.setProperty('--sbw', clamp(w, min, max) + 'px');
+  /* persist ONCE per drag (on release) — localStorage.setItem is a synchronous
+     write; doing it on every pointermove would jank low-end devices mid-drag */
+  const persist = (w) => { try { localStorage.setItem('dx_sidebar_w', String(clamp(w, min, max))); } catch {} };
+  try { const saved = +localStorage.getItem('dx_sidebar_w'); if (saved >= min && saved <= max) setW(saved); } catch {}
   const handle = $('#sbResize'); if (!handle) return;
-  handle.addEventListener('pointerdown', (e) => {
+  /* Pointer-capture drag: once grabbed, EVERY pointer move is routed to the
+     handle even when the cursor outruns the slim strip — fast drags can never
+     freeze mid-way (previously move/up were bound to the handle without
+     capture, so the drag died the moment the pointer left it). Cleanup runs
+     on pointerup, pointercancel AND lostpointercapture so a cancelled touch
+     gesture can't leave the app stuck in 'resizing'. */
+  const drag = (e) => {
     e.preventDefault();
     const startX = e.clientX;
     const startW = parseFloat(getComputedStyle($('#sidebar')).width) || 264;
-    const move = (ev) => apply(startW + (ev.clientX - startX));
-    const up = () => {
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', up);
-      document.body.classList.remove('resizing');
-    };
+    let lastX = startX;
     document.body.classList.add('resizing');
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    const move = (ev) => { lastX = ev.clientX; setW(startW + (ev.clientX - startX)); };
+    const end = () => {
+      document.body.classList.remove('resizing');
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      handle.removeEventListener('lostpointercapture', end);
+      persist(startW + (lastX - startX));
+    };
     handle.addEventListener('pointermove', move);
-    handle.addEventListener('pointerup', up);
-  });
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    handle.addEventListener('lostpointercapture', end);
+  };
+  handle.addEventListener('pointerdown', drag);
 })();
 /* Netflix-style "More" bottom sheet on phones */
 let moreSheet = null;

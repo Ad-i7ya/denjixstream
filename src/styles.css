@@ -92,9 +92,11 @@ iframe, video { max-width: 100%; }
   opacity: .65;
 }
 .sidebar.collapsed { transform: translateX(calc(-1 * var(--sbw, 264px))); }
-/* drag handle on the sidebar's right edge */
+/* drag handle on the sidebar's right edge — 12px hit area (the sidebar's
+   overflow:hidden clips the 3px overhang, leaving a ~9px grabbable strip) and
+   z-index above the collapse button (z-51) that sits at the same edge */
 .sb-resize {
-  position: absolute; top: 0; right: -3px; width: 8px; height: 100%; z-index: 6;
+  position: absolute; top: 0; right: -3px; width: 12px; height: 100%; z-index: 52;
   cursor: col-resize; touch-action: none;
 }
 .sb-resize::after {
@@ -105,6 +107,10 @@ iframe, video { max-width: 100%; }
 .sb-resize:hover::after, body.resizing .sb-resize::after { background: #0a84ff; height: 52px; }
 body.resizing { cursor: col-resize; user-select: none; -webkit-user-select: none; }
 body.resizing * { cursor: col-resize !important; }
+/* during a drag the layout must follow the cursor 1:1 — the collapse button
+   and main area normally animate their left/margin on .45s/.35s springs, which
+   would make the content lag and jitter behind every pointer move */
+body.resizing .main-area, body.resizing .collapse-btn { transition: none !important; }
 .logo { display: flex; justify-content: center; margin-bottom: 30px; flex-shrink: 0; padding: 0 6px; }
 .logo a {
   display: inline-flex; align-items: center; gap: 11px;
