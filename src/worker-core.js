@@ -146,6 +146,11 @@ const UA_PARTS = (ua) => {
   return { os, browser, device, ver };
 };
 const kvGet = async (kv, key, fallback) => { try { const v = await kv.get(key, 'json'); return v === null ? fallback : v; } catch (_) { return fallback; } };
+/* only allow safe link schemes for admin-driven links (blocks javascript:/data:) */
+const safeLink = (raw) => {
+  const s = String(raw || '').trim().slice(0, 300);
+  return /^(https?:\/\/|mailto:|tel:|\/)/i.test(s) ? s : null;
+};
 const kvPut = async (kv, key, val, ttlSeconds) => { try { await kv.put(key, JSON.stringify(val), ttlSeconds ? { expirationTtl: ttlSeconds } : undefined); } catch (_) {} };
 const DAY_TTL = 365 * 86400;
 /* cfg is read on every beacon/siteconfig — cache per isolate for 30s */
@@ -157,7 +162,7 @@ async function siteConfig(env, fresh = false) {
   if (!fresh && cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
   const m = await kvGet(kv, 'cfg', {});
   out.announcement = (m.announcement && m.announcement.text)
-    ? { text: String(m.announcement.text).slice(0, 240), enabled: !!m.announcement.enabled, kind: ['info', 'success', 'warning'].includes(m.announcement.kind) ? m.announcement.kind : 'info', link: String(m.announcement.link || '').slice(0, 300) || null }
+    ? { text: String(m.announcement.text).slice(0, 240), enabled: !!m.announcement.enabled, kind: ['info', 'success', 'warning'].includes(m.announcement.kind) ? m.announcement.kind : 'info', link: safeLink(m.announcement.link) }
     : null;
   out.maintenance = m.maintenance === true;
   out.statsEnabled = m.statsEnabled !== false;
