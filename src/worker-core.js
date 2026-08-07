@@ -278,6 +278,53 @@ async function beaconHandler(request, env) {
 }
 
 
+/* ---------------- User reports ("Report a problem") ----------------
+   Public endpoint: users describe a problem and it lands permanently in D1,
+   where the private admin panel lists / reads / deletes them. Rate-limited to
+   one report per IP per minute; stored in KV only as a fallback. */
+const reportThrottle = new Map();
+async function reportHandler(request, env) {
+  const ip = (request.headers.get('cf-connecting-ip') || '').slice(0, 64);
+  const now = Date.now();
+  if (now - (reportThrottle.get(ip) || 0) < 60000) return json({ error: 'You just sent a report — try again in a minute.' }, 429);
+  let body = {};
+  try { body = await request.json(); } catch (_) {}
+  const cat = ['video', 'title', 'ads', 'broken', 'other'].includes(body.cat) ? body.cat : 'other';
+  const msg = String(body.msg || '').trim().slice(0, 1000);
+  if (msg.length < 5) return json({ error: 'Please describe the problem (at least 5 characters).' }, 400);
+  reportThrottle.set(ip, now);
+  /* keep the throttle map bounded — drop entries older than a minute */
+  if (reportThrottle.size > 500) for (const [k, v] of reportThrottle) if (now - v > 60000) reportThrottle.delete(k);
+  const p = UA_PARTS(request.headers.get('user-agent') || '');
+  const report = {
+    ts: now, ip,
+    device: p.device, model: p.model || '', os: p.os, browser: p.browser,
+    co: (request.headers.get('cf-ipcountry') || '').slice(0, 8), city: (request.headers.get('cf-ipcity') || '').slice(0, 60),
+    cat, msg, contact: String(body.contact || '').slice(0, 120), page: String(body.page || '/').slice(0, 200), status: 'new',
+  };
+  const d1 = env.DENJIX_D1;
+  if (d1) {
+    try {
+      if (!(await kvGet(env.DENJIX_KV, 'd1reports', 0))) {
+        await d1.batch([
+          d1.prepare('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, ip TEXT, device TEXT, model TEXT, os TEXT, browser TEXT, country TEXT, city TEXT, cat TEXT, msg TEXT, contact TEXT, page TEXT, status TEXT)'),
+          d1.prepare('CREATE INDEX IF NOT EXISTS idx_reports_ts ON reports(ts)'),
+          d1.prepare('CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)'),
+        ]);
+        await kvPut(env.DENJIX_KV, 'd1reports', 1);
+      }
+      await d1.prepare('INSERT INTO reports (ts, ip, device, model, os, browser, country, city, cat, msg, contact, page, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .bind(report.ts, report.ip, report.device, report.model, report.os, report.browser, report.co, report.city, report.cat, report.msg, report.contact, report.page, report.status)
+        .run();
+      return json({ ok: true });
+    } catch (_) { /* fall back to KV below */ }
+  }
+  const list = await kvGet(env.DENJIX_KV, 'reports', []);
+  list.unshift(report);
+  await kvPut(env.DENJIX_KV, 'reports', list.slice(0, 300));
+  return json({ ok: true });
+}
+
 /* favicon mirrors the Aurora X mark, brightened for tiny sizes */
 const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ac8fa"/><stop offset=".5" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient><linearGradient id="fhi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="fglo" cx=".32" cy=".26" r="1.05"><stop offset="0" stop-color="#5ac8fa" stop-opacity=".6"/><stop offset=".5" stop-color="#0a84ff" stop-opacity=".25"/><stop offset="1" stop-color="#bf5af2" stop-opacity="0"/></radialGradient></defs><rect x="3" y="3" width="58" height="58" rx="16.5" fill="#101019"/><rect x="3" y="3" width="58" height="58" rx="16.5" fill="url(#fglo)"/><rect x="3" y="3" width="58" height="58" rx="16.5" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/><path d="M9.5 16.5C9.5 11.9 13.4 8 18 8h28c4.6 0 8.5 3.9 8.5 8.5v5H9.5v-5Z" fill="url(#fhi)"/><path d="M21.5 20.5L42.5 43.5M42.5 20.5L21.5 43.5" stroke="url(#fg)" stroke-width="9.5" stroke-linecap="round"/><path d="M28.8 26.6V37.4L36.8 32Z" fill="#fff" stroke="#fff" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="31" cy="14" r="2.1" fill="#5ac8fa" opacity=".95"/></svg>';
 
@@ -354,6 +401,7 @@ export default {
     if (path.startsWith('/api/tmdb/')) return tmdbHandler(request, url, env, ctx);
     if (path === '/api/stream') return streamHandler(request, url, env, ctx);
     if (path === '/api/beacon' && request.method === 'POST') return beaconHandler(request, env);
+    if (path === '/api/report' && request.method === 'POST') return reportHandler(request, env);
     if (path === '/api/siteconfig') return json(await siteConfig(env, true)); /* explicit GET always fresh — admin controls feel live */
     if (path.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return serveApp(request, env, siteName, ctx);

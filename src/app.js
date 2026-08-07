@@ -68,6 +68,7 @@ const ICONS = {
   telegram: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>',
   next: '<path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"/>',
   speed: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+  flag: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"/>',
 };
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cls}">${ICONS[name] || ''}</svg>`;
 
@@ -219,6 +220,7 @@ const sidebarHTML = `
     <div class="side-section">
       <span class="side-label">MORE</span>
       <a class="side-link" data-nav="legal" href="#/legal">${icon('info')}<span>Legal / DMCA</span></a>
+      <button type="button" class="side-link" id="reportBtn">${icon('flag')}<span>Report a problem</span></button>
     </div>
   </div>
   <a class="contact-btn" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Contact on Telegram">${icon('telegram')}<span>Contact</span></a>
@@ -264,6 +266,7 @@ const footerNote = () => {
   <nav class="foot-links" aria-label="Footer">
     <a href="#/">Home</a><a href="#/browse/movie">Movies</a><a href="#/browse/tv">TV Shows</a>
     <a href="#/anime">Anime</a><a href="#/categories">Categories</a><a href="#/legal">Legal / DMCA</a>
+    <button type="button" class="foot-btn" id="footReport">${icon('flag', 'inline')} Report a problem</button>
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
@@ -356,12 +359,68 @@ function closeMoreSheet() {
   /* capture el locally — reading the module var at fire time would be null */
   setTimeout(() => el.remove(), 300);
 }
+
+/* ---------------- Report a problem (glass modal) ---------------- */
+let reportModal = null, reportCat = 'video';
+const REPORT_CATS = [['video', 'Video not playing'], ['title', 'Wrong title / episode'], ['ads', 'Ads or popups'], ['broken', 'Broken page'], ['other', 'Other']];
+function openReportModal() {
+  if (reportModal && reportModal.isConnected) { closeReportModal(); return; }
+  const sb = $('#sidebar'); if (sb) sb.classList.remove('open');
+  reportModal = document.createElement('div');
+  reportModal.className = 'report-overlay';
+  reportModal.innerHTML = `<div class="report-sheet">
+    <button type="button" class="report-x" id="reportX" aria-label="Close">✕</button>
+    <h3>${icon('flag', 'inline')} Report a problem</h3>
+    <p class="report-sub">Something not playing, an issue on a page, or anything else? Tell us — reports go straight to the team.</p>
+    <div class="report-field"><label>What's wrong?</label>
+      <div class="report-cats" id="reportCats">${REPORT_CATS.map(([c, l], i) => `<button type="button" class="rcat ${i === 0 ? 'on' : ''}" data-cat="${c}">${esc(l)}</button>`).join('')}</div>
+    </div>
+    <div class="report-field"><label>Details</label><textarea id="reportMsg" rows="4" maxlength="1000" placeholder="Describe the problem — what happened, what you were watching…"></textarea></div>
+    <div class="report-field"><label>Your contact <em class="muted">(optional)</em></label><input id="reportContact" maxlength="120" placeholder="Email or Telegram @handle so we can reply"></div>
+    <button type="button" class="btn btn-primary" id="reportSend" style="width:100%;justify-content:center">${icon('check')} Send report</button>
+  </div>`;
+  document.body.appendChild(reportModal);
+  requestAnimationFrame(() => reportModal.classList.add('open'));
+  $('#reportX', reportModal).addEventListener('click', closeReportModal);
+  $('#reportSend', reportModal).addEventListener('click', submitReport);
+  $('#reportCats', reportModal).addEventListener('click', (e) => {
+    const b = e.target.closest('.rcat'); if (!b) return;
+    reportCat = b.dataset.cat;
+    $$('.rcat', reportModal).forEach(x => x.classList.toggle('on', x === b));
+  });
+}
+function closeReportModal() {
+  if (!reportModal) return;
+  const el = reportModal; reportModal = null;
+  el.classList.remove('open');
+  setTimeout(() => el.remove(), 280);
+}
+async function submitReport() {
+  const msg = ($('#reportMsg') ? $('#reportMsg').value : '').trim();
+  if (msg.length < 5) { toast('Please describe the problem (at least 5 characters).', true); return; }
+  const btn = $('#reportSend'); btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cat: reportCat, msg, contact: $('#reportContact') ? $('#reportContact').value : '', page: location.hash || '/' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { toast('✓ Report sent — thank you!'); closeReportModal(); }
+    else toast(d.error || 'Could not send the report.', true);
+  } catch (_) { toast('Network error — please try again.', true); }
+  btn.disabled = false; btn.textContent = 'Send report';
+}
 document.addEventListener('click', (e) => {
   if (moreSheet && moreSheet.isConnected) {
     const inSheet = e.target.closest('.more-sheet');
     /* backdrop tap, or any link inside the sheet (navigation) closes it */
     if ((!inSheet && !e.target.closest('#moreBtn')) || (inSheet && e.target.closest('a'))) closeMoreSheet();
   }
+  if (reportModal && reportModal.isConnected) {
+    const inRp = e.target.closest('.report-sheet');
+    if (!inRp && !e.target.closest('#reportBtn') && !e.target.closest('#footReport')) closeReportModal();
+  }
+  if (e.target.closest('#reportBtn') || e.target.closest('#footReport')) { e.preventDefault(); openReportModal(); return; }
   const sb = $('#sidebar');
   if (sb.classList.contains('open')) {
     const inSb = e.target.closest('.sidebar');
@@ -1201,7 +1260,11 @@ async function viewWatch(params) {
       const EVS = ['pointerdown', 'mousedown', 'touchstart', 'pointerup', 'pointercancel', 'click'];
       const nudge = (e) => {
         e.preventDefault(); e.stopPropagation();
-        if (e.type === 'click' && e.target.closest && e.target.closest('.pl-shield-chip')) release();
+        /* release on the FIRST interaction with the chip — on touch devices the
+           preventDefault above suppresses the synthetic click event, so waiting
+           for 'click' would leave the centre button stuck on phones. Any event
+           type aimed at the chip releases the shield. */
+        if (e.target.closest && e.target.closest('.pl-shield-chip')) release();
       };
       const release = () => {
         sh.classList.add('released'); /* fades out; pointer-events off */

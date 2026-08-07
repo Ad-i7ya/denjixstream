@@ -1538,3 +1538,85 @@ body.ep-open { overflow: hidden; }
   .hero { aspect-ratio: 16/6; }
   .hero-slide .content { padding: 20px 40px; }
 }
+
+/* ---------- Report a problem (liquid-glass modal) ---------- */
+.foot-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 500; font-family: inherit;
+  color: var(--text-dim); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  transition: all .25s var(--ease-smooth); cursor: pointer;
+}
+.foot-btn svg { width: 13px; height: 13px; }
+.foot-btn:hover { color: #fff; background: rgba(255,255,255,.13); transform: translateY(-1px); }
+.report-overlay {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+  background: rgba(6,6,10,.55);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  opacity: 0; transition: opacity .25s var(--ease-smooth);
+}
+.report-overlay.open { opacity: 1; }
+.report-sheet {
+  position: relative; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+  background:
+    radial-gradient(130% 60% at 20% 0%, rgba(255,255,255,.12), rgba(255,255,255,0) 55%),
+    linear-gradient(180deg, rgba(32,32,44,.94), rgba(14,14,21,.97));
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border); border-radius: 26px;
+  padding: 24px 22px 18px;
+  box-shadow: var(--shadow-lift), var(--highlight-inset);
+  transform: translateY(18px) scale(.96);
+  transition: transform .38s var(--ease-spring);
+}
+.report-overlay.open .report-sheet { transform: none; }
+.report-x {
+  position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color: #fff;
+  font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .2s, transform .2s var(--ease-spring);
+}
+.report-x:hover { background: rgba(255,255,255,.18); transform: rotate(90deg); }
+.report-sheet h3 { font-size: 19px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 4px; }
+.report-sheet h3 svg { width: 20px; height: 20px; vertical-align: -4px; color: var(--accent-2); }
+.report-sub { font-size: 13px; color: var(--text-muted); line-height: 1.55; margin-bottom: 16px; }
+.report-field { margin-bottom: 14px; }
+.report-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 7px; letter-spacing: .01em; }
+.report-field label em { font-style: normal; font-weight: 500; color: var(--text-muted); }
+.report-cats { display: flex; flex-wrap: wrap; gap: 7px; }
+.rcat {
+  padding: 8px 13px; border-radius: 999px; font-size: 12px; font-weight: 600; font-family: inherit;
+  color: var(--text-dim); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  transition: all .25s var(--ease-smooth); cursor: pointer;
+}
+.rcat:hover { color: #fff; background: rgba(255,255,255,.14); }
+.rcat.on {
+  color: #fff; border-color: rgba(10,132,255,.6);
+  background: linear-gradient(180deg, rgba(10,132,255,.42), rgba(10,132,255,.24));
+  box-shadow: 0 4px 16px rgba(10,132,255,.32), var(--highlight-inset);
+}
+.report-field textarea, .report-field input {
+  width: 100%; padding: 11px 13px; border-radius: 14px; font-size: 13.5px; color: var(--text);
+  background: rgba(255,255,255,.07); border: 1px solid var(--glass-border); outline: none;
+  font-family: inherit; resize: vertical; transition: border-color .25s, background .25s;
+}
+.report-field textarea:focus, .report-field input:focus { border-color: rgba(10,132,255,.65); background: rgba(255,255,255,.11); }
+.report-field textarea::placeholder, .report-field input::placeholder { color: var(--text-muted); }
+
+/* ---------- Phone performance: cheaper liquid glass ----------
+   The blur layers that live on screen permanently (drawer, bottom nav, floats)
+   re-sample on EVERY scroll — on low-end phones that is the #1 jank source.
+   Phones get lighter radii/saturation and hidden slides idle their blobs. */
+@media (max-width: 820px), (hover: none) {
+  /* closed drawer must not blur while off-screen */
+  .sidebar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .sidebar.open { -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); }
+  /* always-on frosted bars: lighter blur */
+  .mobile-nav { -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%); }
+  .float-logo, .menu-btn, .collapse-btn { -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%); }
+  .side-section { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  /* hero blobs animate only on the visible slide — hidden ones must idle */
+  .blob { animation: none; }
+  .hero-slide.active .blob { animation: blobFloat 16s ease-in-out infinite alternate; }
+  /* lighter route veil while swapping pages */
+  #routeVeil { -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1); }
+}
