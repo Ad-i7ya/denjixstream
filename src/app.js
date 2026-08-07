@@ -959,7 +959,7 @@ async function viewWatch(params) {
     srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="muted">No playable sources found for this title right now. Try again later.</div></div>`;
     return;
   }
-  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${i === 0 ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
+  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
     <div class="muted" style="font-size:12px;margin-top:10px">Ad-safe mode is on (no pop-ups/redirects). If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
@@ -1003,7 +1003,9 @@ async function viewWatch(params) {
     frame.src = s.url;
   };
   tabs.addEventListener('click', e => { const b = e.target.closest('.server-tab'); if (b) select(+b.dataset.i); });
-  select(0);
+  /* default to the recommended (★) server if one is flagged, else the first */
+  const recIdx = servers.servers.findIndex(s => s.rec);
+  select(recIdx >= 0 ? recIdx : 0);
   bindWatchlistButtons();
   /* streamex-style: the episode side panel is already open on TV shows.
      Guarded by getElementById so navigating away within the delay can't

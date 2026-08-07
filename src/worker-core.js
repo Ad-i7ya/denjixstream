@@ -79,8 +79,12 @@ async function tmdbHandler(request, url, env, ctx) {
 const EMBED_SERVERS = [
   /* autoplay=1 on every URL (VidGod already had autoplay=true): the embed's own
      poster/thumbnail frame is skipped and the video starts directly — no stale
-     thumbnail, and users never have to click an ad-layered play button. */
-  { name: 'XPass', flag: '★', rec: true, url: (t, i, s, e) => `https://play.xpass.top/e/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+     thumbnail, and users never have to click an ad-layered play button.
+     ★ = default recommended server (ZXC Stream — stable, fast, no popups). */
+  { name: 'ZXC Stream', flag: '★', rec: true, url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'XPass', url: (t, i, s, e) => `https://play.xpass.top/e/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'VidLink', url: (t, i, s, e) => `https://vidlink.pro/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VSrcMe', url: (t, i, s, e) => `https://vidsrc.me/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VidGod', url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
   { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VSrc', url: (t, i, s, e) => `https://vsembed.ru/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
@@ -88,7 +92,6 @@ const EMBED_SERVERS = [
   { name: '2Embed', url: (t, i, s, e) => `https://www.2embed.cc/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
   { name: 'VidZen', url: (t, i, s, e) => `https://vidzen.fun/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VideoEasy', url: (t, i, s, e) => `https://player.videasy.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
-  { name: 'ZXC Stream', url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
 ];
 
 function resolveServers(type, id, season, episode) {
