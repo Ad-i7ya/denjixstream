@@ -880,7 +880,7 @@ async function viewWatch(params) {
     return;
   }
   srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${i === 0 ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">If a server doesn't play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:10px">Ad-safe mode is on (no pop-ups/redirects). If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
@@ -895,7 +895,10 @@ async function viewWatch(params) {
       <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
       <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
     </div>
-    <iframe id="plFrame" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    <!-- sandbox WITHOUT allow-popups / allow-top-navigation: embed players run
+         normally (scripts/same-origin/forms/presentation) but their ad scripts
+         (tagivi, amungus, llvpn popunders) cannot open tabs or redirect the page -->
+    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];
@@ -913,7 +916,7 @@ async function viewWatch(params) {
     loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000);
     $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
     $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); const el = shell; if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); });
-    $('#plEps')?.addEventListener('click', (e) => { e.stopPropagation(); openEpOverlay(); });
+    $('#plEps')?.addEventListener('click', (e) => { e.stopPropagation(); epOpen && epCloseFn ? epCloseFn() : openEpOverlay(); });
     /* set src only after the load listener is attached (no race → loading ring
        always resolves to either the video or the error card) */
     frame.src = s.url;
@@ -921,6 +924,10 @@ async function viewWatch(params) {
   tabs.addEventListener('click', e => { const b = e.target.closest('.server-tab'); if (b) select(+b.dataset.i); });
   select(0);
   bindWatchlistButtons();
+  /* streamex-style: the episode side panel is already open on TV shows.
+     Guarded by getElementById so navigating away within the delay can't
+     scroll-lock the next page (overlay is torn down by the router). */
+  if (isTv) setTimeout(() => { if (document.getElementById('epOverlay')) window.openEpOverlay && window.openEpOverlay(); }, 800);
 }
 
 /* ---- Overlayed scrollable episode list (like streamex.sh): a glass drawer that
@@ -932,6 +939,10 @@ let epCloseFn = null;
 /* single global Escape handler — registered once, routed through epCloseFn so
    navigating between TV shows never stacks duplicate keydown listeners */
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && epCloseFn) epCloseFn(); });
+/* side panel closes when clicking anywhere outside it (or the Episodes button) */
+document.addEventListener('click', (e) => {
+  if (epOpen && epCloseFn && !e.target.closest('.ep-overlay') && !e.target.closest('#plEps')) epCloseFn();
+});
 function buildEpOverlay(id, curSeason, curEpisode) {
   if (document.getElementById('epOverlay')) return;
   const ov = document.createElement('div');
@@ -972,6 +983,7 @@ function buildEpOverlay(id, curSeason, curEpisode) {
   };
   tabs.addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) loadSeason(+b.dataset.s, false); });
   window.openEpOverlay = () => {
+    if (!ov.isConnected) return; /* router already tore the panel down (navigated away) */
     ov.classList.add('open'); epOpen = true; document.body.classList.add('ep-open');
     loadSeason(curSeason, true);
   };

@@ -943,15 +943,24 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .server-tab .srv-pick { font-style: normal; font-size: 11px; color: #ffd60a; }
 /* ---------- Overlayed episode list (glass drawer, like streamex.sh) ---------- */
 .pl-fs b { font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+/* streamex-style side panel — slides in from the right, the video stays
+   visible behind it (no dimming backdrop, so playback is never hidden) */
 .ep-overlay {
-  position: fixed; inset: 0; z-index: 300;
-  background: rgba(6,6,10,.55);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  display: none; align-items: center; justify-content: center;
-  padding: 24px; animation: fadeIn .2s var(--ease-smooth) both;
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 300;
+  width: min(430px, 94vw);
+  background: rgba(8,8,14,.55);
+  -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%);
+  border-left: 1px solid rgba(255,255,255,.14);
+  box-shadow: -24px 0 60px rgba(0,0,0,.5);
+  display: flex; flex-direction: column;
+  transform: translateX(103%); transition: transform .42s var(--ease-spring);
 }
-.ep-overlay.open { display: flex; }
+.ep-overlay.open { transform: none; }
 body.ep-open { overflow: hidden; }
+@media (max-width: 640px) {
+  .ep-overlay { width: 100%; border-left: none; transform: translateY(103%); }
+  .ep-overlay.open { transform: none; }
+}
 /* server tabs: 5-6 per line, wraps instead of scrolling sideways */
 @media (max-width: 720px) {
   .server-tab { flex: 1 1 calc(33.33% - 8px); min-width: 92px; font-size: 12px; padding: 8px 8px; }
@@ -960,15 +969,12 @@ body.ep-open { overflow: hidden; }
   .server-tab { flex: 1 1 calc(50% - 8px); min-width: 0; }
 }
 .ep-panel {
-  width: 100%; max-width: 660px; max-height: min(82vh, 720px);
+  flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  background: linear-gradient(180deg, rgba(30,30,40,.88), rgba(14,14,20,.94));
+  background: linear-gradient(180deg, rgba(30,30,40,.82), rgba(14,14,20,.9));
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 26px;
-  box-shadow: var(--shadow-lift), var(--highlight-inset);
+  border: none;
   overflow: hidden;
-  animation: popIn .3s var(--ease-spring) both;
 }
 .ep-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
