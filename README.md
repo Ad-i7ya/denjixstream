@@ -1,8 +1,8 @@
 # DenjiXstream — free movie & TV streaming site (single-file Cloudflare Worker)
 
-An Apple liquid-glass styled streaming site (streamex.sh features) that runs entirely inside
-**one Cloudflare Worker file** (`worker.js` — ~98 KB, includes the UI, the API proxy and the
-video plumbing). No server, no database, no monthly cost.
+An Apple liquid-glass styled streaming site (streamex.sh-style) that runs entirely inside
+**one Cloudflare Worker file** (`worker.js` — ~94 KB, includes the UI and the engine).
+No server, no database, no monthly cost.
 Contact: [@te4m1ord](https://t.me/te4m1ord) on Telegram.
 
 ```
@@ -11,39 +11,42 @@ Contact: [@te4m1ord](https://t.me/te4m1ord) on Telegram.
 │  (Cloudflare │    │  (metadata)  │    │ search / genres   │
 │   Worker)    │    └──────────────┘    └───────────────────┘
 │              │    ┌──────────────┐    ┌───────────────────┐
-│              │───►│ stream       │───►│ direct m3u8 (no   │
-│              │    │ resolvers    │    │ ads) + embeds     │
+│              │───►│ /api/stream  │───►│ embed servers     │
+│              │    │ (server list)│    │ (VidSrc / 2Embed) │
 └──────────────┘    └──────────────┘    └───────────────────┘
 ```
 
+The worker exposes **no public proxy**. It only serves the SPA plus two invisible engine
+routes (`/api/tmdb/*` metadata + `/api/stream` server list) — exactly the way streamex.sh
+works (its Next.js app fetches TMDB server-side too).
+
 ## Features
 
-- **streamex.sh-style UI**: glass sidebar (`backdrop-blur`), Audiowide logo, glass cards,
-  gradient `#121212` theme, 16:9 backdrop rows, hero banner, mobile bottom nav.
-- **Browse**: Home (trending/popular/top-rated/now playing/upcoming), Browse with genre &
-  sort filters, live Search (movies + TV).
+- **streamex.sh-style UI**: Apple liquid-glass design — frosted sidebar, glass cards,
+  spring animations, dark theme, mobile bottom nav.
+- **Home**: hero banner, **Continue Watching / Recently Watched** row, trending/popular/
+  top-rated/now-playing/upcoming rows with **arrow scroll buttons**.
+- **Browse**: genre tiles + chips + sort tabs (Movies & TV), live search.
+- **Ctrl+K** glass search popup (fast — 220ms debounce + result cache, arrow keys, Enter, Esc).
 - **Detail pages**: hero backdrop, cast row, similar titles, seasons with **horizontally
-  scrollable episode rows** (auto-scrolls to the current episode).
-- **Custom glass player** (hls.js) for **direct sources — zero ads**: server switcher,
-  quality selector, playback speed, volume, fullscreen, picture-in-picture, download,
-  resume-where-you-left-off, and **auto-play next episode** (TV). Keyboard: `Space` play/pause,
-  `←/→` seek 5s, `↑/↓` volume, `F` fullscreen, `M` mute, `N` next episode.
-- **Watchlist & History** (stored in the browser via localStorage).
-- **Ad-free first**: the worker tries to resolve direct m3u8 streams server-side (played in
-  our own player). Third-party **embed servers are only fallbacks**, clearly labelled.
-- TMDB responses are cached in Cloudflare's Cache API (fast, and saves quota).
+  scrollable episode rows** (arrow buttons + auto-scroll to current episode).
+- **Watch page**: multi-server embed player (VidSrc / 2Embed tabs) + episode navigator.
+- **Watchlist & History** stored locally in the browser (localStorage).
+- TMDB responses are cached in Cloudflare's Cache API (fast, quota-friendly).
 
 ## Project layout
 
 ```
 streamex-clone/
-  src/worker-core.js   Worker logic (routing, TMDB proxy, stream resolver, media proxy)
-  src/app.js           Frontend app (hash router, views, player)
-  src/styles.css       Design system (glassmorphism)
-  build.js             Inlines the three sources → worker.js
+  src/worker-core.js   Worker: SPA + TMDB proxy + /api/stream (embed servers)
+  src/app.js           Frontend app (hash router, views, search popup, history)
+  src/styles.css       Apple liquid-glass design system
+  build.js             Inlines the three sources → worker.js (single file)
   worker.js            ⭐ THE single deployable file
   test-server.mjs      Local test harness (node)
   deploy.mjs           Push to GitHub + deploy to Cloudflare via APIs
+  .deploy.env          Local deploy credentials (gitignored — never commit)
+  .env.example         Documented template for the above
 ```
 
 ## Local development
@@ -56,54 +59,33 @@ node test-server.mjs     # serves the site at http://localhost:8787
 
 ## Deploy — Cloudflare dashboard (2 minutes, manual, free)
 
-1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** →
-   **Create** → **Worker** → name it (e.g. `cineglass`) → **Deploy**.
-2. Click **Edit code**, select all, **paste the entire contents of `worker.js`**, **Save and deploy**.
-3. Optional: **Settings → Variables and Secrets**:
-   - `SITE_NAME` → your site's name (shown in the logo)
-   - `TMDB_API_KEY` → your own free key from the TMDB website (a public key is used by default)
-   - `PROXY_HOSTS` → optional comma-separated allowlist of stream CDN domains
-4. Done — visit `https://cineglass.<your-subdomain>.workers.dev`. You can also add a custom
-   domain under **Settings → Domains & Routes**.
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** →
+   **Worker** → name it (e.g. `denjixstream`) → **Deploy**.
+2. **Edit code** → paste the entire contents of **`worker.js`** → **Save and deploy**.
+3. Optional **Settings → Variables and Secrets**: `SITE_NAME`, `TMDB_API_KEY`.
 
-## Deploy — automatic (GitHub + Cloudflare APIs)
+## Deploy — automatic (zero prompts)
+
+Credentials live in `.deploy.env` (gitignored). Just run:
 
 ```bash
 cd streamex-clone
 node build.js
-GITHUB_TOKEN=github_pat_xxx node deploy.mjs --github
-CF_API_TOKEN=xxx CF_ACCOUNT_ID=xxx node deploy.mjs --cloudflare
-# or everything at once:
-GITHUB_TOKEN=... CF_API_TOKEN=... CF_ACCOUNT_ID=... CF_WORKER_NAME=cineglass node deploy.mjs
+node deploy.mjs          # pushes to GitHub + deploys to Cloudflare
 ```
 
-- GitHub token: fine-grained PAT with **Contents: Read & write** on the new repo.
-- Cloudflare token: **Account → Workers Scripts → Edit** (Account Resources: your account).
-- For auto-deploy on every push: connect the repo to Cloudflare via
-  **Workers → your worker → Settings → Builds → Git integration** (Cloudflare GitHub App).
+- GitHub token: fine-grained PAT with **Contents: Read & write** on the repo
+  (+ **Administration: Read & write** to auto-create the repo).
+- Cloudflare token: **My Profile → API Tokens → "Edit Cloudflare Workers"** template.
 
-## Editing the stream providers
+## Editing the stream servers
 
-All providers live in `src/worker-core.js`:
-
-- `DIRECT_APIS` — JSON APIs that return direct m3u8 URLs (ad-free)
-- `PAGE_SCAN_RESOLVERS` — pages that are scanned for a direct m3u8
-- `EMBED_SERVERS` — iframe fallback players (may show ads; last resort)
-
-Provider endpoints change often — update these arrays, re-run `node build.js`, redeploy.
-
-## How the media proxy works
-
-`/proxy?url=…` fetches streams through the Worker, which:
-- forwards `Range` requests (seek) and sets a proper `Referer` (required by many CDNs),
-- **rewrites HLS manifests** so every variant and segment URL also goes through `/proxy`
-  (this is what makes ad-free direct playback work in the browser),
-- caches segments in the Cache API,
-- blocks private/loopback IPs and non-http(s) schemes (SSRF guard); optional `PROXY_HOSTS`
-  allowlist for extra lockdown.
+All servers live in `src/worker-core.js` → `EMBED_SERVERS`. Provider endpoints change
+often — update the array, re-run `node build.js`, redeploy. (Keep at least 2-3 servers so
+viewers can switch if one is down.)
 
 ## Legal
 
 This site does not host or store any media files. It links to content hosted on third-party
-services and streams it via public players. Built for educational/portfolio purposes — users
-are responsible for complying with the laws of their jurisdiction. See the site's Legal page.
+services via public embed players. Built for educational/portfolio purposes — users are
+responsible for complying with the laws of their jurisdiction. See the site's Legal page.

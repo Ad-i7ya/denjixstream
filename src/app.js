@@ -186,13 +186,15 @@ function backdropCard(m, { grid = false } = {}) {
   </div>`;
 }
 function continueCard(p) {
-  const href = p.type === 'tv' ? `#/watch/tv/${p.id}/${p.season}/${p.episode}` : `#/watch/movie/${p.id}`;
-  const pct = clamp((p.time / p.duration) * 100, 0, 100);
+  const href = p.type === 'tv' ? `#/watch/tv/${p.id}/${p.season || 1}/${p.episode || 1}` : `#/watch/movie/${p.id}`;
+  const hasP = p.duration > 0;
+  const pct = hasP ? clamp((p.time / p.duration) * 100, 0, 100) : 0;
+  const label = p.type === 'tv' ? `S${p.season}·E${p.episode}` : 'Movie';
   return `<div class="card backdrop" onclick="location.hash='${href.slice(1)}'">
     ${p.backdrop_path ? `<img loading="lazy" src="${IMG_BACKDROP(p.backdrop_path)}" alt="">` : `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('film')}</div>`}
     <div class="play-circle">${icon('play')}</div>
-    <div class="glass"><div class="title">${esc(p.title || '')}</div><div class="sub">${p.type === 'tv' ? `S${p.season}·E${p.episode}` : 'Movie'} · ${Math.round(pct)}% watched</div></div>
-    <div class="card-progress" style="width:${pct}%"></div>
+    <div class="glass"><div class="title">${esc(p.title || '')}</div><div class="sub">${label}${hasP ? ` · ${Math.round(pct)}%` : ''}</div></div>
+    ${hasP ? `<div class="card-progress" style="width:${pct}%"></div>` : ''}
   </div>`;
 }
 function progressFlag(m) {
@@ -279,12 +281,18 @@ async function viewHome() {
     .filter(p => p && p.duration && p.time > 30 && p.time / p.duration < 0.92)
     .sort((a, b) => (b.ts || 0) - (a.ts || 0))
     .slice(0, 12);
-  const contRow = cont.length ? `<section style="margin-bottom:22px">
-    <div class="section-head"><h2 class="section-title">${icon('clock')} Continue Watching</h2><a class="view-all" href="#/history">History →</a></div>
+  const recent = cont.length ? [] : Store.history.all().slice(0, 12).map(h => ({
+    type: h.type, id: h.id, title: h.title, backdrop_path: h.backdrop,
+    season: h.season, episode: h.episode, time: 0, duration: 0, ts: h.ts,
+  }));
+  const contItems = cont.length ? cont : recent;
+  const contTitle = cont.length ? 'Continue Watching' : 'Recently Watched';
+  const contRow = contItems.length ? `<section style="margin-bottom:22px">
+    <div class="section-head"><h2 class="section-title">${icon('clock')} ${contTitle}</h2><a class="view-all" href="#/history">History →</a></div>
     <div class="row-wrap">
       <button class="row-nav prev">${icon('chevL')}</button>
       <button class="row-nav next">${icon('chevR')}</button>
-      <div class="row scrollbar-hide">${cont.map(continueCard).join('')}</div>
+      <div class="row scrollbar-hide">${contItems.map(continueCard).join('')}</div>
     </div>
   </section>` : '';
   main.innerHTML = heroBanner(hero) +
@@ -471,58 +479,24 @@ async function viewWatch(params) {
   </div>`;
   if (isTv) Store.history.add({ key: `tv-${id}`, type: 'tv', id: +id, title, poster: d?.poster_path, backdrop: d?.backdrop_path, season, episode, ts: Date.now() });
   else Store.history.add({ key: `movie-${id}`, type: 'movie', id: +id, title, poster: d?.poster_path, backdrop: d?.backdrop_path, ts: Date.now() });
-  if (isTv) {
-    setupNextEpisode(d, id, season, episode);
-    renderWatchEpisodes(d, id, season, episode);
-  }
+  if (isTv) renderWatchEpisodes(d, id, season, episode);
 
   const srv = $('#watchServers');
   if (!servers.servers || !servers.servers.length) {
     srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="muted">No playable sources found for this title right now. Try again later.</div></div>`;
     return;
   }
-  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}"><span class="srv-dot ${s.type}"></span>${esc(s.name)}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">${servers.servers.some(s => s.type === 'embed') ? 'Note: “Embed” servers render a third-party player which may display ads. “Direct” servers are ad-free.' : 'All sources are direct & ad-free.'}</div></div>`;
+  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}">${esc(s.name)}</button>`).join('')}</div>
+    <div class="muted" style="font-size:12px;margin-top:10px">If a server doesn't play, switch to another one below.</div></div>`;
   const tabs = $('#srvTabs');
-  let player = null;
   const select = (i) => {
     const s = servers.servers[i];
     $$('.server-tab', tabs).forEach(t => t.classList.toggle('active', +t.dataset.i === i));
-    if (player) { player.destroy(); player = null; }
-    $('#playerShell').innerHTML = '';
-    if (s.type === 'direct') player = new GlassPlayer($('#playerShell'), s, { media: d, type, id, season, episode, title, onNext: () => goNext() });
-    else mountEmbed($('#playerShell'), s);
+    $('#playerShell').innerHTML = `<iframe src="${esc(s.url)}" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" referrerpolicy="origin" title="Video player"></iframe>`;
   };
   tabs.addEventListener('click', e => { const b = e.target.closest('.server-tab'); if (b) select(+b.dataset.i); });
   select(0);
   bindWatchlistButtons();
-}
-
-function mountEmbed(shell, s) {
-  shell.innerHTML = `<iframe src="${esc(s.url)}" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" referrerpolicy="origin"></iframe>`;
-}
-
-let goNext = () => {};
-async function setupNextEpisode(d, id, curSeason, curEpisode) {
-  try {
-    const seasons = (d.seasons || []).filter(s => s.season_number > 0 && s.episode_count > 0);
-    const data = await api(`/tv/${id}/season/${curSeason}?language=en-US`).catch(() => null);
-    if (data && data.episodes && data.episodes.length) {
-      const idx = data.episodes.findIndex(e => e.episode_number === curEpisode);
-      if (idx >= 0 && idx < data.episodes.length - 1) {
-        const nxt = data.episodes[idx + 1].episode_number;
-        goNext = () => navigate(`#/watch/tv/${id}/${curSeason}/${nxt}`);
-        return;
-      }
-    }
-    const si = seasons.findIndex(s => s.season_number === curSeason);
-    if (si >= 0 && si < seasons.length - 1) {
-      const nextS = seasons[si + 1];
-      goNext = () => navigate(`#/watch/tv/${id}/${nextS.season_number}/1`);
-      return;
-    }
-  } catch (_) {}
-  goNext = () => toast('You have reached the last available episode');
 }
 
 async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
@@ -549,177 +523,6 @@ async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
   };
   el.querySelector('.season-tabs').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) load(+b.dataset.s); });
   load(curSeason);
-}
-
-/* ---------------- GLASS PLAYER (hls.js, ad-free direct sources) ---------------- */
-class GlassPlayer {
-  constructor(shell, server, ctx) {
-    this.shell = shell; this.server = server; this.ctx = ctx;
-    this.hls = null; this.timer = null; this.volume = store.get('sg_vol', 1);
-    this.quality = null;
-    this.build();
-    this.load();
-  }
-  build() {
-    const s = this.shell;
-    s.innerHTML = `<div class="player-wrap" style="margin:0">
-      <div class="player-shell" id="ps">
-        <video id="video" playsinline></video>
-        <div class="center-big" id="bigPlay">${icon('play')}</div>
-        <div class="pc-top">
-          <div class="pc-title"><span class="pc-badge">DIRECT</span><span id="pcTitle"></span></div>
-          <button class="pc-btn" id="pcPip" title="Picture in Picture">${icon('movie')}</button>
-        </div>
-        <div class="player-controls" id="controls">
-          <div class="pc-row" style="padding-bottom:4px">
-            <div class="pc-progress" id="progress"><div class="track"><div class="buffered" id="buffered"></div><div class="fill" id="fill"></div><div class="knob" id="knob"></div></div></div>
-          </div>
-          <div class="pc-row">
-            <button class="pc-btn pc-play" id="playBtn">${icon('pause')}</button>
-            <button class="pc-btn" id="volBtn">${icon('volume')}</button>
-            <span class="pc-time"><span id="cur">0:00</span> / <span id="dur">0:00</span></span>
-            <div style="flex:1"></div>
-            <button class="pc-btn" id="speedBtn" title="Playback speed">${icon('speed')} <span id="speedLabel" style="font-size:11px;font-weight:700">1x</span></button>
-            <button class="pc-btn" id="qBtn" title="Quality">${icon('gear')} <span id="qLabel" style="font-size:11px;font-weight:700">Auto</span></button>
-            <a class="pc-btn" id="dlBtn" title="Download" target="_blank" rel="noopener">${icon('download')}</a>
-            <button class="pc-btn" id="fsBtn" title="Fullscreen">${icon('fullscreen')}</button>
-          </div>
-        </div>
-        <div class="player-error" id="perr"><div class="msg">Could not load this source.</div><div class="sub">Try another server above, or refresh the page.</div></div>
-      </div>
-    </div>`;
-    this.video = $('#video', s); this.perr = $('#perr', s);
-    $('#pcTitle', s).textContent = this.ctx.title || '';
-    $('#dlBtn', s).href = this.server.proxyUrl || this.server.url;
-    this.bindEvents();
-  }
-  bindEvents() {
-    const s = this.shell, v = this.video;
-    const wrap = $('.player-wrap', s);
-    $('#playBtn', s).addEventListener('click', () => v.paused ? v.play() : v.pause());
-    $('#bigPlay', s).addEventListener('click', () => { v.play(); $('#bigPlay', s).style.display = 'none'; });
-    wrap.addEventListener('dblclick', () => this.toggleFs());
-    $('#fsBtn', s).addEventListener('click', () => this.toggleFs());
-    $('#pcPip', s).addEventListener('click', async () => { try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); else await v.requestPictureInPicture(); } catch {} });
-    $('#volBtn', s).addEventListener('click', () => { v.muted = !v.muted; this.syncVol(); });
-    $('#progress', s).addEventListener('click', (e) => { const r = e.currentTarget.getBoundingClientRect(); if (v.duration) v.currentTime = ((e.clientX - r.left) / r.width) * v.duration; });
-    $('#speedBtn', s).addEventListener('click', () => {
-      const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-      v.playbackRate = speeds[(speeds.indexOf(v.playbackRate) + 1) % speeds.length] || 1;
-      $('#speedLabel', s).textContent = v.playbackRate + 'x';
-    });
-    $('#qBtn', s).addEventListener('click', () => {
-      const levels = this.hls?.levels || [];
-      if (!levels.length) { toast('No alternate qualities available'); return; }
-      const heights = [...new Set(levels.map(l => l.height).filter(Boolean))].sort((a, b) => b - a);
-      const cur = this.quality || heights[0] || 0;
-      const idx = heights.indexOf(cur);
-      const next = heights[(idx + 1) % heights.length] || null;
-      this.hls.currentLevel = next ? levels.findIndex(l => (l.height || 0) === next) : -1;
-      this.quality = next;
-      $('#qLabel', s).textContent = next ? next + 'p' : 'Auto';
-    });
-    v.addEventListener('click', () => v.paused ? v.play() : v.pause());
-    v.addEventListener('play', () => { $('#playBtn', s).innerHTML = icon('pause'); $('#bigPlay', s).style.display = 'none'; this.ctrlShow(true); });
-    v.addEventListener('pause', () => { $('#playBtn', s).innerHTML = icon('play'); $('#bigPlay', s).style.display = 'flex'; });
-    v.addEventListener('volumechange', () => this.syncVol());
-    v.addEventListener('timeupdate', () => {
-      $('#cur', s).textContent = fmtTime(v.currentTime);
-      const d = v.duration || 0; $('#dur', s).textContent = fmtTime(d);
-      $('#fill', s).style.transform = `scaleX(${d ? v.currentTime / d : 0})`;
-      $('#knob', s).style.left = `${d ? (v.currentTime / d) * 100 : 0}%`;
-      this.saveProgress();
-    });
-    v.addEventListener('progress', () => {
-      const b = v.buffered; if (b.length && v.duration) $('#buffered', s).style.transform = `scaleX(${b.end(b.length - 1) / v.duration})`;
-    });
-    v.addEventListener('ended', () => { this.onEnded(); });
-    v.addEventListener('error', () => { if (!this.perr.classList.contains('show')) this.perr.classList.add('show'); });
-    this.ctrlTimer = null;
-    const show = (on) => this.ctrlShow(on);
-    wrap.addEventListener('mousemove', () => show(true));
-    wrap.addEventListener('mouseleave', () => show(false));
-    document.addEventListener('keydown', (e) => this.hotkey(e));
-  }
-  ctrlShow(on) {
-    const c = $('#controls', this.shell);
-    if (on) { c.classList.add('show'); clearTimeout(this.ctrlTimer); this.ctrlTimer = setTimeout(() => { if (!this.video.paused) c.classList.remove('show'); }, 3200); }
-  }
-  syncVol() {
-    const v = this.video;
-    $('#volBtn', this.shell).innerHTML = icon(v.muted || v.volume === 0 ? 'mute' : 'volume');
-    store.set('sg_vol', v.volume);
-  }
-  toggleFs() {
-    const wrap = $('.player-wrap', this.shell);
-    if (document.fullscreenElement) document.exitFullscreen(); else wrap.requestFullscreen?.().catch(() => {});
-  }
-  hotkey(e) {
-    if (!this.shell.isConnected) return;
-    const v = this.video, t = e.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    switch (e.key) {
-      case ' ': case 'k': e.preventDefault(); v.paused ? v.play() : v.pause(); break;
-      case 'ArrowRight': v.currentTime += 5; break;
-      case 'ArrowLeft': v.currentTime -= 5; break;
-      case 'ArrowUp': e.preventDefault(); v.volume = clamp(v.volume + 0.1, 0, 1); v.muted = false; break;
-      case 'ArrowDown': e.preventDefault(); v.volume = clamp(v.volume - 0.1, 0, 1); break;
-      case 'f': this.toggleFs(); break;
-      case 'm': v.muted = !v.muted; this.syncVol(); break;
-      case 'n': if (this.ctx.onNext) this.ctx.onNext(); break;
-    }
-  }
-  async load() {
-    const url = this.server.proxyUrl || this.server.url;
-    this.video.volume = this.volume;
-    const resume = this.ctx.type === 'tv' ? Store.progress.get(`tv-${this.ctx.id}`) : Store.progress.get(`movie-${this.ctx.id}`);
-    if (resume && this.ctx.type === 'tv' && (resume.season !== this.ctx.season || resume.episode !== this.ctx.episode)) resume.time = 0;
-    const isHls = /\.m3u8(\?|$)/i.test(url) || this.server.hls;
-    if (isHls && window.Hls?.isSupported()) {
-      this.hls = new Hls({ maxBufferLength: 30, enableWorker: true });
-      this.hls.loadSource(url);
-      this.hls.attachMedia(this.video);
-      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        const levels = this.hls.levels.map(l => l.height).filter(Boolean);
-        const best = Math.max(...levels, 0);
-        if (best) this.hls.currentLevel = levels.indexOf(best);
-        this.hls.on(Hls.Events.LEVEL_SWITCHED, (_e, d) => { this.quality = d.height || null; $('#qLabel', this.shell).textContent = this.quality ? this.quality + 'p' : 'Auto'; });
-      });
-      this.hls.on(Hls.Events.ERROR, (_e, d) => {
-        if (d.fatal) { if (d.type === 'networkError') this.hls.startLoad(); else if (d.type === 'mediaError') this.hls.recoverMediaError(); else this.perr.classList.add('show'); }
-      });
-    } else if (isHls && window.Hls) {
-      this.perr.classList.add('show'); return;
-    } else {
-      this.video.src = url;
-    }
-    if (resume && resume.time && resume.duration && resume.time / resume.duration < 0.85 && resume.time > 15) {
-      this.video.addEventListener('loadedmetadata', () => { this.video.currentTime = resume.time; }, { once: true });
-    }
-    this.video.play().catch(() => {});
-  }
-  saveProgress() {
-    const v = this.video; if (!v.duration) return;
-    const key = this.ctx.type === 'tv' ? `tv-${this.ctx.id}` : `movie-${this.ctx.id}`;
-    Store.progress.set(key, {
-      type: this.ctx.type, id: this.ctx.id, season: this.ctx.season, episode: this.ctx.episode,
-      time: v.currentTime, duration: v.duration, ts: Date.now(),
-      title: this.ctx.title,
-      backdrop_path: this.ctx.media?.backdrop_path || null,
-    });
-  }
-  onEnded() {
-    const p = Store.progress.get(this.ctx.type === 'tv' ? `tv-${this.ctx.id}` : `movie-${this.ctx.id}`);
-    if (p) { p.time = p.duration; Store.progress.set(this.ctx.type === 'tv' ? `tv-${this.ctx.id}` : `movie-${this.ctx.id}`, p); }
-    if (this.ctx.onNext) setTimeout(() => this.ctx.onNext(), 600);
-    else { toast('Finished! 🎉'); this.perr.classList.remove('show'); const c = $('#controls', this.shell); c.classList.add('show'); }
-  }
-  destroy() {
-    clearTimeout(this.ctrlTimer);
-    this.hls?.destroy(); this.hls = null;
-    this.video?.pause(); this.video?.removeAttribute('src');
-    this.video?.load();
-  }
 }
 
 /* ---------------- WATCHLIST / HISTORY / LEGAL ---------------- */
