@@ -336,13 +336,14 @@ $('#moreBtn').addEventListener('click', () => {
     <div class="more-grab"></div>
     <div class="more-grid">
       <a href="#/categories">${icon('film')}<span>Categories</span></a>
-      <a href="#/anime">${icon('sparkles')}<span>Anime</span></a>
+      <a href="#/anime" data-nav="anime">${icon('sparkles')}<span>Anime</span></a>
       <a href="#/browse/tv?sort=top_rated">${icon('star')}<span>Top Rated</span></a>
       <a href="#/history">${icon('clock')}<span>History</span></a>
       <a href="#/legal">${icon('info')}<span>Legal</span></a>
       <a href="https://t.me/te4m1ord" target="_blank" rel="noopener">${icon('telegram')}<span>Contact</span></a>
     </div>
   </div>`;
+  if (siteCfg && siteCfg.anime === false) $('[data-nav="anime"]', moreSheet)?.remove(); /* anime disabled from the panel */
   document.body.appendChild(moreSheet);
   $('#moreSheetClose', moreSheet).addEventListener('click', closeMoreSheet);
   requestAnimationFrame(() => moreSheet.classList.add('open'));

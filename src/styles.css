@@ -119,6 +119,7 @@ body.resizing * { cursor: col-resize !important; }
 }
 .logo a:hover .logo-mark { transform: rotate(-6deg) scale(1.05); }
 .logo-tag { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em; opacity: .9; }
+.hidden { display: none !important; }
 .logo-word {
   font-family: var(--font-logo);
   font-size: 22px; font-weight: 700; letter-spacing: -0.03em;
