@@ -83,17 +83,18 @@ const EMBED_SERVERS = [
      ★ = default recommended server. Verified popup-free embeds come first:
      their pages and JS bundles carry NO window.open / popunder / _blank ad
      triggers (audited 2026-08). vidsrc.me/airflix-style hidden-iframe popup
-     cloaking servers were removed — their ad tabs cannot be blocked without
-     sandboxing, which the embeds themselves refuse. */
+     cloaking servers AND the XPass/2Embed/VidZen smartlink-popunder servers
+     were removed — their ad tabs cannot be blocked without sandboxing, which
+     the embeds themselves refuse. */
   { name: 'ZXC Stream', flag: '★', rec: true, url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VidLink', url: (t, i, s, e) => `https://vidlink.pro/${t}/${i}${s ? `/${s}/${e}` : ''}` },
   { name: 'VidGod', url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
   { name: 'VideoEasy', url: (t, i, s, e) => `https://player.videasy.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VidLinkMe', url: (t, i, s, e) => `https://vidlink.me/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'XPass', url: (t, i, s, e) => `https://play.xpass.top/e/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
-  { name: '2Embed', url: (t, i, s, e) => `https://www.2embed.cc/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'VidZen', url: (t, i, s, e) => `https://vidzen.fun/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  /* XPass, 2Embed and VidZen were removed after a fresh audit — their pages
+     ship window.open / _blank ad triggers (VidZen literally opens a SMARTLINK
+     popunder). The six above are clean in their HTML AND JS bundles. */
 ];
 
 function resolveServers(type, id, season, episode) {

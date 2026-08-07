@@ -974,7 +974,7 @@ const searchPreview = async () => {
 async function viewSearch() {
   const q = parseQuery(location.hash.split('?')[1]);
   const query = (q.q || '').trim();
-  main.innerHTML = `<div class="search-bar">${icon('search')}<input id="searchInput" placeholder="Search movies, TV shows..." value="${esc(query)}" autofocus autocomplete="off" spellcheck="false" name="dx-search"></div>
+  main.innerHTML = `<div class="search-bar">${icon('search')}<input id="searchInput" placeholder="Search movies, TV shows..." value="${esc(query)}" autofocus autocomplete="off" spellcheck="false" name="dx-search"><button class="sr-kbd" id="srKbd" type="button" title="Quick search (Ctrl+K)">${/Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K'}</button></div>
     <div class="filter-tabs" id="searchTabs">
       <button class="chip active" data-st="multi">All</button>
       <button class="chip" data-st="movie">Movies</button>
@@ -983,6 +983,8 @@ async function viewSearch() {
     <div id="searchResults">${query ? SKELETON_GRID : `<div class="skeleton" style="height:300px;border-radius:20px"></div>`}</div>`;
   const input = $('#searchInput'), tabs = $('#searchTabs');
   let st = 'multi';
+  /* the Ctrl+K chip inside the search bar opens the quick-search popup on click */
+  $('#srKbd')?.addEventListener('click', () => { if (typeof window.openSearch !== 'function') buildSearchPopup(); window.openSearch(); });
   const run = debounce(async () => {
     const v = input.value.trim();
     if (!v) { history.replaceState(null, '', '#/search'); searchPreview(); return; }
@@ -1131,7 +1133,7 @@ async function viewWatch(params) {
     return;
   }
   srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">Verified ad-free servers are listed first (popup-cloaking ones were removed); the rest are backups. The player swallows stray clicks until you enable it. If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:10px">All ${servers.servers.length} servers are audited ad-free — the popup-cloaking ones (2Embed, XPass, VidZen) were removed after verification. The player blocks stray clicks until you tap “Enable player”. If a server refuses to play, just pick another one below.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
@@ -1149,12 +1151,13 @@ async function viewWatch(params) {
     <!-- Ad-proof player: NO sandbox attribute — some embeds detect a sandboxed
          frame and refuse to play, so the player runs fully sandbox-free for
          100% server compatibility. Ad tabs are handled by the auto-closers in
-         boot(): the window 'popup' event + the window.open wrapper slam any
-         ad popup shut instantly (legit t.me/YouTube windows are allowlisted).
-         The pl-shield swallows the FIRST tap (the interaction clickjacking
-         ad-overlays hook); tap once to enable controls. No referrerpolicy
-         override: embeds rely on the origin referrer to resolve streams. -->
-    <div class="pl-shield" aria-hidden="true"><span class="pl-shield-chip">${icon('play')}<em>Enable player</em></span></div>
+         boot(): the window 'popup' event + the window.open wrapper + a periodic
+         sweep slam any ad popup shut (legit t.me/YouTube windows are allowlisted).
+         The pl-shield blocks ALL stray interaction until the user deliberately
+         taps “Enable player” — ad-overlays that hook clicks/taps can never fire.
+         No referrerpolicy override: embeds rely on the origin referrer to
+         resolve streams. -->
+    <div class="pl-shield"><button type="button" class="pl-shield-chip" title="Enable player controls">${icon('play')}<em>Enable player</em></button></div>
     <iframe id="plFrame" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
@@ -1169,37 +1172,33 @@ async function viewWatch(params) {
     clearTimeout(loadTimer);
     /* an embed that loads a page is “playing” — hide the ring; if nothing loads
        in 14s, show the animated error card instead of a silent black screen.
-       The ad shield STAYS until the user's first tap — that first interaction
-       (the one clickjacking ad-overlays hook) is swallowed by the shield, then
-       controls are enabled and the video is fully interactive. */
-    /* arm the ad shield: swallow the FIRST tap (clickjacking ad-overlays hook),
-       then release so the video is fully interactive. Re-armable so Retry and
-       every server switch starts shielded again. */
+       The ad shield stays armed until the user deliberately taps “Enable
+       player” — the embed never receives a stray interaction, so ad-overlays
+       that hook clicks/taps can never fire. Re-armable so Retry and every
+       server switch starts shielded again. */
     const armShield = () => {
       const sh = $('.pl-shield', shell);
       if (!sh) return;
       sh.classList.remove('released');
-      /* ad overlays hook pointerdown/touchstart/click — the shield absorbs the
-         ENTIRE first gesture (down → up → click) so the embed never sees a
-         stray interaction, then releases on the NEXT pointerdown. Releasing on
-         the first pointerup would leak that same tap's click to the embed. */
-      const nudge = (e) => { e.preventDefault(); e.stopPropagation(); };
+      /* Ad-proof interaction gate: ad-overlays hook pointerdown/touchstart/click
+         to open ad tabs. While armed, the shield swallows EVERY interaction in
+         capture phase, so the embed never receives a single stray tap. It
+         releases only when the user deliberately taps the “Enable player”
+         button — the one honest interaction, on a control the embed can never
+         hijack. */
       const EVS = ['pointerdown', 'mousedown', 'touchstart', 'pointerup', 'pointercancel', 'click'];
-      /* swallow EVERYTHING while armed — the full first gesture (down→up→click)
-         never reaches the embed. Release only on the SECOND pointerdown: the
-         counter listener is registered BEFORE the nudge in capture phase so it
-         always runs, then disarms on tap #2. */
-      let taps = 0;
-      const onDown = () => {
-        taps += 1;
-        if (taps >= 2) {
-          sh.classList.add('released'); /* fades out; pointer-events off */
-          EVS.forEach(ev => sh.removeEventListener(ev, nudge, { capture: true }));
-          sh.removeEventListener('pointerdown', onDown, { capture: true });
-        }
+      const nudge = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (e.type === 'click' && e.target.closest && e.target.closest('.pl-shield-chip')) release();
       };
-      sh.addEventListener('pointerdown', onDown, { capture: true });
+      const release = () => {
+        sh.classList.add('released'); /* fades out; pointer-events off */
+        EVS.forEach(ev => sh.removeEventListener(ev, nudge, { capture: true }));
+      };
       EVS.forEach(ev => sh.addEventListener(ev, nudge, { capture: true }));
+      /* native <button>: focusable + announced by AT; Enter/Space also release */
+      const chip = $('.pl-shield-chip', sh);
+      if (chip) chip.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); release(); } });
     };
     armShield();
     frame.addEventListener('load', () => { loaded = true; hideLoading(); });
@@ -1475,8 +1474,13 @@ const POPUP_ALLOW = /^(https?:\/\/)?([a-z0-9-]+\.)?(t\.me|telegram\.me|youtube\.
 const popupBlocked = (url) => !!url && !POPUP_ALLOW.test(String(url));
 /* second net: if the browser doesn't emit a popup event (older engines),
    our own window.open is wrapped so a stray popup from player-side code can
-   be killed before it paints. Cross-origin embeds bypass this — the popup
-   event above is what catches theirs. */
+   be killed before it paints. Cross-origin embeds bypass both — their ad tabs
+   can't be caught from the parent page (browser boundary), which is why the
+   server list only carries audited ad-free embeds. The sweep below is the
+   third net, re-closing anything that slipped past the wrapper. */
+/* windows our wrapper remembers — the sweep below re-closes any ad tab whose
+   close() was rejected at open time (e.g. while the popup was still painting) */
+const sweepWins = new Set();
 {
   const _open = window.open.bind(window);
   window.open = function (url, name, feats) {
@@ -1484,9 +1488,18 @@ const popupBlocked = (url) => !!url && !POPUP_ALLOW.test(String(url));
     if (w && !w.closed && document.getElementById('plFrame') && Date.now() - allowPopupTs >= 2000 && popupBlocked(url)) {
       try { w.close(); } catch (_) {}
     }
+    if (w && document.getElementById('plFrame') && popupBlocked(url)) sweepWins.add(w);
     return w;
   };
 }
+/* periodic popup sweep — second-chance net that re-slams any remembered ad tab
+   shut every 400ms while a player is on screen. Single shared timer; it is a
+   no-op on normal pages, so it costs nothing when no video is playing. */
+setInterval(() => {
+  if (!document.getElementById('plFrame')) return;
+  for (const w of sweepWins) { try { if (w && !w.closed) w.close(); } catch (_) {} }
+  sweepWins.clear();
+}, 400);
 window.addEventListener('popup', (e) => {
   const w = e && e.window;
   /* only police while a player is on screen — never during normal browsing */
