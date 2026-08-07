@@ -1368,8 +1368,9 @@ body.ep-open { overflow: hidden; }
   .hero-slide .overview { -webkit-line-clamp: 1; }
   .hero-dots { bottom: 9px; }
   .hero-nav { display: none; }
-  .detail-hero { border-radius: 22px; }
-  .detail-hero .backdrop { aspect-ratio: 16/8.5; }
+  .detail-hero { border-radius: 22px; min-height: 300px; }
+  .detail-hero .backdrop { aspect-ratio: 16/8.5; height: 100%; object-fit: cover; }
+  .detail-hero .detail-trailer iframe { transform: translate(-50%, -50%) scale(1.6); }
   .detail-hero .content { padding: 20px; gap: 16px; }
   .poster { width: 104px; }
   .card.backdrop { width: 188px; }
@@ -1413,10 +1414,15 @@ body.ep-open { overflow: hidden; }
   .card .glass .title { font-size: 12px; -webkit-line-clamp: 1; }
   .card .play-circle { width: 32px; height: 32px; bottom: 8px; left: 8px; }
   .card .play-circle svg { width: 13px; height: 13px; }
-  .detail-hero .content { flex-direction: column; align-items: flex-start; padding: 16px; }
+  .detail-hero { min-height: 288px; }
+  .detail-hero .content { flex-direction: column; align-items: flex-start; padding: 16px; gap: 8px; }
   .poster { display: none; }
-  .detail-info h1 { font-size: 24px; }
-  .detail-info .overview { -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .detail-info { gap: 6px; }
+  .detail-info h1 { font-size: 23px; }
+  .detail-info .overview { -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  /* the action row must NEVER be clipped — it lives at the bottom of the hero */
+  .detail-info .detail-actions { margin-top: auto; padding-top: 8px; }
+  .detail-info .detail-actions .btn { padding: 8px 16px; font-size: 13px; }
   .ep-card { width: 188px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 11px; }
   .row { gap: 12px; }
@@ -1434,6 +1440,9 @@ body.ep-open { overflow: hidden; }
   .hero-slide .content { padding: 12px 20px; }
   .hero-slide h1 { font-size: 18px; }
   .detail-hero .backdrop { aspect-ratio: 16/7; }
+  /* short landscape screens: keep the hero compact so the actions stay visible */
+  .detail-hero { min-height: 200px; }
+  .detail-info .overview { -webkit-line-clamp: 1; }
   .search-bar { margin-bottom: 18px; }
 }
 @media (min-width: 1025px) and (max-height: 560px) {
