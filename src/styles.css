@@ -323,16 +323,28 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .card.backdrop { width: 300px; aspect-ratio: 16/9; }
 .card.grid-card { aspect-ratio: 16/9; width: 100%; }
 .card img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s var(--ease-smooth); }
-.card:hover img { transform: scale(1.08); }
+.card:hover img { transform: scale(1.04); }
 .card .glass {
   position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end;
   padding: 14px 14px 14px 66px; /* leave room for the bottom-left play button */
-  background: linear-gradient(0deg, rgba(8,8,12,.92) 0%, rgba(8,8,12,.42) 45%, transparent 80%);
-  opacity: 0; transition: opacity .3s var(--ease-smooth);
+  background: linear-gradient(0deg, rgba(8,8,12,.95) 0%, rgba(8,8,12,.6) 40%, rgba(8,8,12,.18) 72%, transparent 100%);
+  transition: background .3s var(--ease-smooth);
 }
-.card:hover .glass { opacity: 1; }
-.card .glass .title { font-weight: 700; font-size: 14.5px; line-height: 1.3; letter-spacing: -0.01em; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
-.card .glass .sub { font-size: 12px; color: #c0c0cc; margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.card:hover .glass {
+  background: linear-gradient(0deg, rgba(8,8,12,.98) 0%, rgba(8,8,12,.7) 45%, rgba(8,8,12,.25) 78%, transparent 100%);
+}
+.card .glass .title {
+  font-weight: 700; font-size: 14.5px; line-height: 1.3; letter-spacing: -0.01em; text-shadow: 0 2px 12px rgba(0,0,0,.85);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  transition: transform .3s var(--ease-smooth);
+}
+.card:hover .glass .title { transform: translateY(-2px); }
+.card .glass .sub { font-size: 12px; color: #c9c9d2; margin-top: 3px; display: flex; align-items: center; gap: 6px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+/* compact play button + text on smaller grid cards so titles never get cut */
+.card.grid-card .play-circle { width: 34px; height: 34px; bottom: 10px; left: 10px; }
+.card.grid-card .play-circle svg { width: 16px; height: 16px; }
+.card.grid-card .glass { padding: 10px 10px 10px 50px; }
+.card.grid-card .glass .title { font-size: 13px; -webkit-line-clamp: 1; }
 .card .glass .sub .r { color: #ffd60a; font-weight: 700; font-size: 11.5px; }
 .card .play-circle {
   position: absolute; bottom: 14px; left: 14px; transform: scale(.75);
