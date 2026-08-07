@@ -82,12 +82,24 @@ in `EMBED_SERVERS` must pass this checklist before it is added:
 Known-removed servers: `vidsrc.me` / `airflix` (hidden-iframe popup cloaking),
 `XPass`, `2Embed`, `VidZen` (smartlink popunders).
 
-## Privacy
+## Privacy & telemetry
 
 - No accounts, no tracking SDKs, no third-party analytics.
 - Watchlist, history and watch progress live **only** in the visitor's browser
   (`localStorage`).
 - TMDB metadata requests are made server-side by the worker and cached at Cloudflare.
+- **Admin telemetry (optional):** when the shared KV namespace is bound, the site sends
+  anonymous `visit` / `page` / `watch` / `search` events to `/api/beacon` (IP, country,
+  device/OS/browser from the request, page/title/query; bots are filtered server-side).
+  Only the owner's **private admin panel** reads this data; it can be exported or wiped
+  from the panel, and the whole beacon can be disabled via `statsEnabled` in the panel.
+
+## Admin panel security
+
+- The admin worker is a **private** repo + `noindex` worker, reachable only by URL.
+- Google-style email+password sign-in accepting **one** admin email (changeable only
+  after authenticating). Passwords stored salted + hashed; login rate-limited
+  (5 tries / 10 min / IP); sessions are HMAC-signed, HttpOnly, Secure, SameSite=Strict.
 
 ## Reporting issues
 

@@ -191,6 +191,7 @@ async function router() {
   // re-trigger the per-view rise AFTER render for Apple-smooth continuity
   main.classList.remove('view-enter'); void main.offsetWidth; main.classList.add('view-enter');
   setActiveNav();
+  beacon('page', { title: document.title });
 }
 window.addEventListener('hashchange', router);
 
@@ -989,6 +990,7 @@ async function viewSearch() {
     const v = input.value.trim();
     if (!v) { history.replaceState(null, '', '#/search'); searchPreview(); return; }
     history.replaceState(null, '', '#/search?q=' + encodeURIComponent(v));
+    beacon('search', { q: String(v).slice(0, 100) });
     $('#searchResults').innerHTML = SKELETON_GRID;
     const path = st === 'multi' ? '/search/multi' : `/search/${st}`;
     const r = await api(`${path}?query=${encodeURIComponent(v)}&language=en-US&include_adult=false`).catch(() => ({ results: [] }));
@@ -1119,6 +1121,7 @@ async function viewWatch(params) {
   ]);
   const title = d ? (d.title || d.name) : (type === 'tv' ? 'TV Show' : 'Movie');
   const epName = isTv ? (season + '×' + episode) : '';
+  beacon('watch', { title: String(title).slice(0, 120), id: type + ':' + id });
   $('#watchMeta').innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px">
     <a class="btn btn-ghost" style="padding:8px 12px" href="#/${type}/${id}">${icon('arrowL')}</a>
     <div><h1 class="page-title" style="font-size:22px">${esc(title)}</h1>${epName ? `<div class="muted" style="font-size:13px">Season ${season} · Episode ${episode}</div>` : `<div class="muted" style="font-size:13px">${esc(d?.tagline || '')}</div>`}</div>
@@ -1410,6 +1413,7 @@ function buildSearchPopup() {
   const run = async () => {
     const q = input.value.trim();
     if (q.length < 2) { render([]); results.innerHTML = '<div class="pop-hint">Type to search — try “inception” or “game of thrones”</div>'; return; }
+    beacon('search', { q: String(q).slice(0, 100) });
     if (searchCache.has(q)) { render(searchCache.get(q)); return; }
     const r = await api(`/search/multi?query=${encodeURIComponent(q)}&language=en-US&include_adult=false`).catch(() => ({ results: [] }));
     const list = r.results.filter(x => (x.media_type === 'movie' || x.media_type === 'tv') && (x.poster_path || x.backdrop_path)).slice(0, 8);
@@ -1438,6 +1442,46 @@ document.addEventListener('keydown', (e) => {
     window.openSearch();
   }
 });
+
+/* ---------------- TELEMETRY + SITE CONFIG (admin panel) ----------------
+   The public site sends lightweight, anonymous usage events to /api/beacon
+   (page views, watches, searches) and reads admin-driven config from
+   /api/siteconfig (announcement banner, maintenance mode, server overrides).
+   No personal data beyond standard analytics (IP is stored server-side only). */
+function beacon(ev, extra = {}) {
+  try {
+    const payload = { ev, page: location.hash || '/', ref: document.referrer ? String(document.referrer).slice(0, 300) : '', ...extra };
+    const body = JSON.stringify(payload);
+    if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'application/json' }));
+    else fetch('/api/beacon', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+  } catch (_) {}
+}
+let siteCfg = null;
+function applySiteConfig() {
+  const cfg = siteCfg || {};
+  const ann = cfg.announcement && cfg.announcement.enabled ? cfg.announcement : null;
+  let banner = $('#announceBanner');
+  if (ann && ann.text) {
+    if (!banner) { banner = document.createElement('div'); banner.id = 'announceBanner'; banner.className = 'announce-banner'; document.body.appendChild(banner); }
+    if (banner.dataset.t !== ann.text) {
+      banner.dataset.t = ann.text;
+      banner.innerHTML = `<span>${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em></span><button id="annClose" aria-label="Dismiss announcement">${icon('x')}</button>`;
+      $('#annClose', banner)?.addEventListener('click', () => banner.remove());
+    }
+  } else if (banner) banner.remove();
+  let mo = $('#maintOverlay');
+  if (cfg.maintenance) {
+    if (!mo) { mo = document.createElement('div'); mo.id = 'maintOverlay'; mo.className = 'maint-overlay'; document.body.appendChild(mo); }
+    mo.innerHTML = `<div class="maint-card">${LOGO_MARK}<h2>Under maintenance</h2><p>${esc(ann && ann.text ? ann.text : 'We are improving things — please check back shortly.')}</p></div>`;
+  } else if (mo) mo.remove();
+}
+async function loadSiteConfig() {
+  try {
+    const r = await fetch('/api/siteconfig', { cache: 'no-store' });
+    if (r.ok) siteCfg = await r.json();
+  } catch (_) { siteCfg = null; }
+  applySiteConfig();
+}
 
 /* ---------------- BOOT ---------------- */
 /* PERF: card placeholder shimmer sweeps animate infinitely until each lazy
@@ -1514,6 +1558,8 @@ function boot() {
   buildSearchPopup();
   new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
   pauseShimmerOffscreen();
+  loadSiteConfig();
+  try { if (!sessionStorage.getItem('dx_visited')) { sessionStorage.setItem('dx_visited', '1'); beacon('visit'); } } catch (_) {}
   router();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

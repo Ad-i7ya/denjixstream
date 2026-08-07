@@ -84,6 +84,10 @@ async function deployCloudflare() {
     { name: 'TMDB_API_KEY', type: 'plain_text', text: process.env.TMDB_API_KEY || '8265bd1679663a7ea12ac168da84d2e8' },
     { name: 'SITE_NAME', type: 'plain_text', text: SITE_NAME },
   ];
+  /* shared analytics KV namespace (created by deploy-admin.mjs in
+     denjixstream-admin) — without this the beacon /api/siteconfig
+     gracefully degrade to no-ops */
+  if (process.env.DENJIX_KV_ID) bindings.push({ name: 'DENJIX_KV', type: 'kv_namespace', namespace_id: process.env.DENJIX_KV_ID });
   form.append('metadata', JSON.stringify({ main_module: 'worker.js', compatibility_date: '2024-09-23', bindings }));
   form.append('worker.js', new Blob([code], { type: 'application/javascript+module' }), 'worker.js');
   const res = await fetch(`${CF_API}/accounts/${accountId}/workers/scripts/${CF_WORKER_NAME}`, {

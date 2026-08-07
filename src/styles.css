@@ -956,6 +956,41 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 /* after the enabling tap the shield fades and pointer-events drop off — the
    player is fully interactive and the embed never saw that first click */
 .pl-shield.released { opacity: 0; visibility: hidden; pointer-events: none; }
+/* ---------- Admin-driven site chrome ---------- */
+/* announcement banner (controlled from the private admin panel) */
+.announce-banner {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 95; max-width: min(92vw, 620px);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+  -webkit-backdrop-filter: var(--blur-soft); backdrop-filter: var(--blur-soft);
+  border: 1px solid var(--glass-border); box-shadow: var(--shadow-glass), var(--highlight-inset);
+  color: #fff; font-size: 13px; font-weight: 600; letter-spacing: -.01em;
+  animation: bannerIn .5s var(--ease-spring) both;
+}
+.announce-banner svg { width: 15px; height: 15px; color: #0a84ff; flex-shrink: 0; }
+.announce-banner em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.announce-banner button { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px; display: flex; flex-shrink: 0; }
+.announce-banner button:hover { color: #fff; }
+@keyframes bannerIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* maintenance overlay (admin-driven) */
+.maint-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(5,5,10,.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2);
+}
+.maint-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 36px 46px; border-radius: 28px; text-align: center;
+  background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.04));
+  border: 1px solid var(--glass-border); box-shadow: var(--shadow-glass), var(--highlight-inset);
+}
+.maint-card .logo-mark { width: 56px; height: 56px; }
+.maint-card h2 { font-size: 20px; margin: 0; }
+.maint-card p { color: var(--text-dim); font-size: 13.5px; max-width: 380px; margin: 0; }
+
 /* real fullscreen must fill the screen (UA :fullscreen max-width:none is overridden by the cap above) */
 .player-wrap:fullscreen { max-width: none !important; border-radius: 0; }
 .player-wrap video, .player-wrap iframe { width: 100%; aspect-ratio: 16/9; display: block; background: #000; border: none; }

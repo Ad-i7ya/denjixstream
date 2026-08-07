@@ -62,6 +62,25 @@ Real environment variables always override `.deploy.env`.
 | `GITHUB_TOKEN` | deploy.mjs only | — |
 | `CF_API_TOKEN` / `CF_ACCOUNT_ID` | deploy.mjs only | — |
 | `REPO_NAME` / `CF_WORKER_NAME` | deploy.mjs only | `denjixstream` |
+| `DENJIX_KV_ID` | shared analytics KV namespace (set by the admin deploy) | — |
+
+## Admin panel (private)
+
+The private admin worker (`denjixstream-admin`) adds a shared **KV namespace** binding
+to this worker and a telemetry **beacon** (`/api/beacon`) plus admin-driven config
+(`/api/siteconfig`). Deploy it once with:
+
+```bash
+cd denjixstream-admin            # separate repo (private on GitHub)
+cp .env.example .deploy.env      # GITHUB_TOKEN / CF_API_TOKEN / CF_ACCOUNT_ID
+node build-admin.js
+node deploy-admin.mjs            # creates the KV namespace, deploys admin worker + re-deploys this site
+```
+
+`deploy-admin.mjs` writes `DENJIX_KV_ID` (and the generated `ADMIN_PASSWORD` /
+`SESSION_SECRET`) back into `.deploy.env` — future `node deploy.mjs` runs keep the
+KV binding automatically. If KV is absent, the public site degrades gracefully
+(no beacon writes, default config).
 
 > **Rotate tokens after use.** `.deploy.env` contains live credentials; it is
 > gitignored, but treat it as sensitive.

@@ -20,7 +20,9 @@ into `worker.js` as JSON string literals. The worker then serves:
 - `GET /` → a complete HTML document (CSS inlined in `<style>`, app JS inlined in
   `<script>`, avatars inlined as base64 `data:` URIs).
 - `GET /api/tmdb/*` → cached TMDB proxy.
-- `GET /api/stream` → JSON list of embed servers.
+- `GET /api/stream` → JSON list of embed servers (merged with admin overrides).
+- `POST /api/beacon` → anonymous telemetry (only with the KV binding).
+- `GET /api/siteconfig` → admin-driven config: announcement, maintenance, servers.
 - `GET /avatars/kyren|denji` → the two Telegram developer photos.
 
 **Why one file?** Zero infrastructure to maintain, deployable by pasting into the
@@ -35,6 +37,8 @@ Browser ──► Cloudflare Worker ──► routes:
                  ├── "/"            → 200 HTML (SPA shell)
                  ├── "/api/tmdb/*"  → fetch TMDB, Cache-API cache (1 h), JSON
                  ├── "/api/stream"  → JSON embed-server list (no-store)
+                 ├── "/api/beacon"  → POST telemetry → day:* blob (if bound)
+                 ├── "/api/siteconfig" → config from KV (announcement etc.)
                  ├── "/avatars/*"   → base64 avatar (cacheable)
                  └── anything else  → 404 JSON
 ```
@@ -84,6 +88,21 @@ See [SECURITY.md](SECURITY.md) for the full threat model. Summary of layers:
 5. **Click shield** (`pl-shield`) — swallows every pointer interaction in capture
    phase until the user deliberately taps **"Enable player"** (a native, keyboard
    accessible `<button>`), so clickjacking ad-overlays never receive a click.
+
+## Admin panel & shared KV
+
+A separate **private** worker — `denjixstream-admin` (own repo) — administers this site
+through a shared **KV** namespace (keys: `cfg`, `auth`, `day:YYYY-MM-DD` daily blobs):
+
+```
+public worker  /api/beacon ──write──►  day:* blobs  ◄──read──  admin /api/stats, /api/visitors, /api/logs
+public worker  /api/siteconfig ◄─read─  cfg          ◄─write──  admin /api/config, /api/servers
+public worker  /api/stream  ◄─read──  cfg.servers (overrides the built-in list)
+```
+
+The public side only writes events and reads config; every admin control is a write
+from the admin worker. `EMBED_SERVERS` patterns (`{type}/{id}/{s}/{e}`) are the
+shared contract between the two workers.
 
 ## Server engine (`src/worker-core.js`)
 

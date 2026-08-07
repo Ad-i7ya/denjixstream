@@ -109,7 +109,9 @@ async function streamHandler(request, url, env, ctx) {
   const season = url.searchParams.get('season');
   const episode = url.searchParams.get('episode');
   if (!/^\d+$/.test(id)) return json({ error: 'bad id' }, 400);
-  const cacheKey = `stream:v2:${type}:${id}:${season || ''}:${episode || ''}`;
+  const cfg = await siteConfig(env);
+  const cfgRev = cfg.servers ? cfg.serversRev : 'd';
+  const cacheKey = `stream:v3:${type}:${id}:${season || ''}:${episode || ''}:${cfgRev}`;
   const c = cacheStore();
   if (c) {
     try {
@@ -117,7 +119,9 @@ async function streamHandler(request, url, env, ctx) {
       if (hit) return cors(hit);
     } catch (_) {}
   }
-  const servers = resolveServers(type, Number(id), season ? Number(season) : null, episode ? Number(episode) : null);
+  const servers = cfg.servers && cfg.servers.length
+    ? cfg.servers.filter(s => s.enabled !== false).map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, url: buildFromPattern(s.pattern, type, Number(id), season ? Number(season) : null, episode ? Number(episode) : null) }))
+    : resolveServers(type, Number(id), season ? Number(season) : null, episode ? Number(episode) : null);
   const body = { type, id: Number(id), season: season ? Number(season) : null, episode: episode ? Number(episode) : null, servers, resolvedAt: Date.now() };
   if (c && ctx) {
     try { ctx.waitUntil(c.put(new Request(cacheKey, { method: 'GET' }), new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600' } }))); } catch (_) {}
@@ -125,7 +129,77 @@ async function streamHandler(request, url, env, ctx) {
   return json(body);
 }
 
-/* ---------------- App (SPA) ---------------- */
+/* ---------------- KV analytics + admin-driven site config ----------------
+   Shared with the private admin panel worker (denjixstream-admin) via a KV
+   namespace. The main site only ever WRITES day-blob events and READS the
+   cfg key — admin panel controls (announcement, maintenance, server list)
+   are applied here. KV free tier is ~1k writes/day, so every visitor event
+   is ONE read-modify-write on its daily blob (bots are skipped; stats can be
+   disabled from the panel). Concurrency may occasionally drop an event. */
+const UA_PARTS = (ua) => {
+  const s = String(ua || '');
+  const os = /Android/.test(s) ? 'Android' : /iPhone|iPad|iPod/.test(s) ? 'iOS' : /Windows/.test(s) ? 'Windows' : /Mac OS X|Macintosh/.test(s) ? 'macOS' : /CrOS/.test(s) ? 'ChromeOS' : /Linux/.test(s) ? 'Linux' : 'Other';
+  const browser = /Edg\//.test(s) ? 'Edge' : /OPR\//.test(s) ? 'Opera' : /Firefox\//.test(s) ? 'Firefox' : /Chrome\//.test(s) ? 'Chrome' : /Safari\//.test(s) ? 'Safari' : 'Other';
+  const device = /iPad/.test(s) ? 'Tablet' : /iPhone|Android/.test(s) ? (/Mobile/.test(s) ? 'Phone' : 'Tablet') : 'Desktop';
+  return { os, browser, device };
+};
+const kvGet = async (kv, key, fallback) => { try { const v = await kv.get(key, 'json'); return v === null ? fallback : v; } catch (_) { return fallback; } };
+const kvPut = async (kv, key, val, ttlSeconds) => { try { await kv.put(key, JSON.stringify(val), ttlSeconds ? { expirationTtl: ttlSeconds } : undefined); } catch (_) {} };
+const DAY_TTL = 365 * 86400;
+/* cfg is read on every beacon/siteconfig — cache per isolate for 30s */
+let cfgCache = { t: 0, v: null };
+async function siteConfig(env) {
+  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0' };
+  const kv = env.DENJIX_KV;
+  if (!kv) return out;
+  if (cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
+  const m = await kvGet(kv, 'cfg', {});
+  out.announcement = (m.announcement && m.announcement.text) ? m.announcement : null;
+  out.maintenance = m.maintenance === true;
+  out.statsEnabled = m.statsEnabled !== false;
+  if (Array.isArray(m.servers) && m.servers.length) out.servers = m.servers;
+  out.serversRev = String(m.servers_ts || '0');
+  cfgCache = { t: Date.now(), v: out };
+  return out;
+}
+async function beaconHandler(request, env) {
+  const kv = env.DENJIX_KV;
+  if (!kv) return json({ ok: false }, 503);
+  const st = await siteConfig(env);
+  if (!st.statsEnabled) return json({ ok: true, skipped: true });
+  const ua = request.headers.get('user-agent') || '';
+  if (/bot|crawl|spider|curl|wget|headless|preview|slurp|python/i.test(ua)) return json({ ok: true, skipped: true });
+  let body = {};
+  try { body = await request.json(); } catch (_) {}
+  const p = UA_PARTS(ua);
+  const t = Date.now();
+  const rawEv = String(body.ev || 'page').toLowerCase();
+  const evType = ['page', 'watch', 'search', 'visit', 'error'].includes(rawEv) ? rawEv : 'page';
+  const ev = {
+    t, ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 64),
+    dv: p.device, os: p.os, br: p.browser, co: (request.headers.get('cf-ipcountry') || '').slice(0, 8),
+    pg: String(body.page || '/').slice(0, 200), ev: evType,
+    ti: String(body.title || '').slice(0, 200), q: String(body.q || '').slice(0, 120),
+  };
+  const key = 'day:' + new Date(t).toISOString().slice(0, 10);
+  const blob = await kvGet(kv, key, { d: key.slice(4), n: 0, counts: { ev: {}, device: {}, os: {}, br: {}, co: {}, pg: {}, ti: {}, q: {} }, visitors: {}, events: [] });
+  const inc = (o, k) => { if (k) o[k] = (o[k] || 0) + 1; };
+  const c = blob.counts;
+  blob.n += 1;
+  inc(c.ev, ev.ev); inc(c.device, ev.dv); inc(c.os, ev.os); inc(c.br, ev.br); inc(c.co, ev.co);
+  inc(c.pg, ev.pg);
+  if (ev.ev === 'watch') inc(c.ti, ev.ti);
+  if (ev.ev === 'search') inc(c.q, ev.q);
+  const v = blob.visitors[ev.ip] || { n: 0, first: t, last: t };
+  v.n += 1; v.first = Math.min(v.first || t, t); v.last = Math.max(v.last || t, t);
+  if (!v.dv) v.dv = ev.dv; if (!v.os) v.os = ev.os; if (!v.co) v.co = ev.co;
+  blob.visitors[ev.ip] = v;
+  if (blob.events.length < 1500) blob.events.push(ev);
+  await kvPut(kv, key, blob, DAY_TTL);
+  return json({ ok: true });
+}
+
+
 /* favicon mirrors the Aurora X mark, brightened for tiny sizes */
 const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ac8fa"/><stop offset=".5" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient><linearGradient id="fhi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="fglo" cx=".32" cy=".26" r="1.05"><stop offset="0" stop-color="#5ac8fa" stop-opacity=".6"/><stop offset=".5" stop-color="#0a84ff" stop-opacity=".25"/><stop offset="1" stop-color="#bf5af2" stop-opacity="0"/></radialGradient></defs><rect x="3" y="3" width="58" height="58" rx="16.5" fill="#101019"/><rect x="3" y="3" width="58" height="58" rx="16.5" fill="url(#fglo)"/><rect x="3" y="3" width="58" height="58" rx="16.5" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/><path d="M9.5 16.5C9.5 11.9 13.4 8 18 8h28c4.6 0 8.5 3.9 8.5 8.5v5H9.5v-5Z" fill="url(#fhi)"/><path d="M21.5 20.5L42.5 43.5M42.5 20.5L21.5 43.5" stroke="url(#fg)" stroke-width="9.5" stroke-linecap="round"/><path d="M28.8 26.6V37.4L36.8 32Z" fill="#fff" stroke="#fff" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="31" cy="14" r="2.1" fill="#5ac8fa" opacity=".95"/></svg>';
 
@@ -201,6 +275,8 @@ export default {
       return new Response(b64ToBytes(AVATAR_DENJI), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
     if (path.startsWith('/api/tmdb/')) return tmdbHandler(request, url, env, ctx);
     if (path === '/api/stream') return streamHandler(request, url, env, ctx);
+    if (path === '/api/beacon' && request.method === 'POST') return beaconHandler(request, env);
+    if (path === '/api/siteconfig') return json(await siteConfig(env));
     if (path.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return serveApp(request, env, siteName, ctx);
   },

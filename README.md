@@ -71,6 +71,14 @@ exactly how streamex.sh works.
 - **Watchlist** and **History** stored locally (localStorage) — no accounts needed.
 - Footer credits the developers with Telegram profile photos.
 
+**Admin panel (private)**
+- A separate, **private** worker (`denjixstream-admin`) gives the owner full control:
+  usage analytics (visitors, devices, OS, browsers, countries, top pages/titles/searches),
+  live logs, embed-server management, announcement banner, maintenance mode, and account
+  settings — behind a Google-style email+password sign-in. See
+  [denjixstream-admin](https://github.com/Ad-i7ya/denjixstream-admin) (private repo) and
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Project layout
 
 ```
@@ -122,6 +130,14 @@ Full instructions: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | [docs/SECURITY.md](docs/SECURITY.md) | Ad-proofing strategy, no-sandbox rationale, server audit policy |
 | [docs/API.md](docs/API.md) | Internal endpoints, embed-server list, adding a server |
 | [docs/TESTING.md](docs/TESTING.md) | Local harness, jsdom verification, release checklist |
+
+## Admin panel & analytics
+
+The site ships a tiny telemetry beacon (`/api/beacon` — anonymous page/watched/search
+events) and reads admin-driven config (`/api/siteconfig`). Data lives in a **shared KV
+namespace** that the private **DenjiXstream Admin** worker administers. Deploying the
+admin panel: `cd denjixstream-admin && node build-admin.js && node deploy-admin.mjs`
+(see the admin repo's README). The public worker degrades gracefully if KV is absent.
 
 ## Editing the stream servers
 
