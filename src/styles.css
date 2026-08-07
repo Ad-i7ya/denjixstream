@@ -1044,6 +1044,46 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .pl-fs svg { width: 17px; height: 17px; }
 #plEps { width: auto; padding: 0 13px; gap: 7px; }
 #plEps b { font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+/* liquid-glass keyboard shortcuts overlay (?) */
+.keys-overlay {
+  position: fixed; inset: 0; z-index: 320;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6,6,10,.45);
+  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  opacity: 0; pointer-events: none;
+  transition: opacity .28s var(--ease-smooth);
+}
+.keys-overlay.open { opacity: 1; pointer-events: auto; }
+.keys-card {
+  width: min(460px, 92vw); max-height: 82vh; overflow: auto;
+  background: linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 26px;
+  -webkit-backdrop-filter: blur(40px) saturate(180%); backdrop-filter: blur(40px) saturate(180%);
+  box-shadow: 0 30px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.22);
+  padding: 22px 24px 24px;
+  transform: translateY(14px) scale(.96);
+  transition: transform .38s var(--ease-spring);
+}
+.keys-overlay.open .keys-card { transform: none; }
+.keys-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.keys-head h3 { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.keys-head h3 svg { width: 20px; height: 20px; color: #0a84ff; }
+.keys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
+.keys-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.keys-row kbd {
+  min-width: 58px; text-align: center;
+  padding: 4px 9px; border-radius: 9px;
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.24);
+  border-bottom-width: 2.5px;
+  font-family: inherit; font-size: 11.5px; font-weight: 700; color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+}
+.keys-row span { font-size: 13px; color: var(--text-dim); }
+@media (max-width: 640px) {
+  .keys-grid { grid-template-columns: 1fr; }
+  .keys-card { padding: 18px; border-radius: 22px; }
+}
 /* unique loading ring: conic rainbow sweep + pulsing core, fades out on load */
 .pl-loading {
   position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column;

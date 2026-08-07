@@ -69,6 +69,7 @@ const ICONS = {
   next: '<path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"/>',
   speed: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
   flag: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"/>',
+  kbd: '<rect x="2" y="6" width="20" height="13" rx="2.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M10 14h.01M14 14h.01M18 14h.01M9 14h6"/>',
 };
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cls}">${ICONS[name] || ''}</svg>`;
 
@@ -1207,7 +1208,7 @@ async function viewWatch(params) {
   const season = isTv ? +params.season : null;
   const episode = isTv ? +params.episode : null;
   const type = isTv ? 'tv' : 'movie';
-  main.innerHTML = `<div id="playerShell" class="player-wrap" style="margin-bottom:22px"><div class="spinner" style="margin:180px auto"></div></div>
+  main.innerHTML = `<div id="playerShell" class="player-wrap" tabindex="-1" style="margin-bottom:22px"><div class="spinner" style="margin:180px auto"></div></div>
     <div id="watchMeta"><div class="skeleton" style="height:40px;width:60%"></div></div><div id="watchServers"></div><div id="watchEps"></div>${footerNote()}`;
   const [d, servers] = await Promise.all([
     api(`/${type}/${id}?language=en-US`).catch(() => null),
@@ -1236,7 +1237,7 @@ async function viewWatch(params) {
   const playerChrome = (s, loadingTxt) => `
     <div class="pl-top">
       <div class="pl-title"><span class="pl-mark">${LOGO_MARK.replace('logo-mark', 'pl-mark-svg')}</span><span class="pl-t">${esc(title)}</span>${epName ? `<em class="pl-ep">${esc(epName)}</em>` : ''}</div>
-      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span>${isTv ? `<button class="pl-fs" id="plEps" title="Episodes">${icon('tv')}<b>${esc(epName || 'Eps')}</b></button>` : ''}<button class="pl-fs" id="plFs" title="Fullscreen">${icon('fullscreen')}</button></div>
+      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span>${isTv ? `<button class="pl-fs" id="plEps" title="Episodes (E)">${icon('tv')}<b>${esc(epName || 'Eps')}</b></button>` : ''}<button class="pl-fs" id="plKeys" title="Keyboard shortcuts (?)">${icon('kbd')}<b>?</b></button><button class="pl-fs" id="plFs" title="Fullscreen (F)">${icon('fullscreen')}</button></div>
     </div>
     <div class="pl-loading" id="plLoading"><div class="pl-ring"><i></i></div><div class="pl-loading-txt">${esc(loadingTxt || 'Connecting to ' + s.name)}</div></div>
     <div class="pl-err" id="plErr">
@@ -1295,11 +1296,21 @@ async function viewWatch(params) {
       const release = () => {
         sh.classList.add('released'); /* fades out; pointer-events off */
         EVS.forEach(ev => sh.removeEventListener(ev, nudge, { capture: true }));
+        /* keep focus on the shell (tabindex=-1), NOT the iframe — otherwise every
+           later keystroke would land in the embed's own browsing context and the
+           page-wide shortcuts (F/S/E/N/P/H/?) would stop responding. The embed
+           is driven via postMessage; an explicit play covers embeds that don't
+           autoplay (harmless if they do). */
+        plFocus();
+        plPlayState = true;
+        plCmd('play');
+        plReleaseShield = null;
       };
       EVS.forEach(ev => sh.addEventListener(ev, nudge, { capture: true }));
       /* native <button>: focusable + announced by AT; Enter/Space also release */
       const chip = $('.pl-shield-chip', sh);
       if (chip) chip.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); release(); } });
+      plReleaseShield = release;
     };
     armShield();
     frame.addEventListener('load', () => { loaded = true; hideLoading(); });
@@ -1322,6 +1333,118 @@ async function viewWatch(params) {
   if (isTv) setTimeout(() => { if (document.getElementById('epOverlay')) window.openEpOverlay && window.openEpOverlay(); }, 800);
 }
 
+/* ---------------- PLAYER KEYBOARD CONTROLS ---------------- */
+/* Full playback control without touching the screen. The embed is a
+   cross-origin iframe, so play/pause/seek/volume are best-effort: we focus the
+   frame (embeds with native key handling, e.g. videojs-style, respond
+   instantly) and also postMessage the standard commands. Everything we own
+   (fullscreen, episodes, servers, home, help) is handled directly. Only
+   active while a player is on screen and no input/overlay is focused. */
+let plReleaseShield = null;
+/* local playback-state heuristics — the embed is cross-origin, so play/pause/
+   volume/mute toggles can't be read back; track them locally so Space, M and
+   the arrow keys behave like real toggles instead of absolute jumps */
+let plPlayState = false, plVolState = 1, plMutedState = false;
+const plFrameEl = () => document.getElementById('plFrame');
+const plShellEl = () => document.getElementById('playerShell');
+/* focus the SHELL, never the iframe: once a cross-origin frame has focus, every
+   later keystroke goes into its own browsing context and this page's shortcut
+   handler goes deaf. Keeping focus on the shell means F/S/E/N/P/H/?/Space keep
+   working, and the embed is driven reliably via postMessage instead. */
+const plFocus = () => { const s = plShellEl(); if (s) { try { s.focus({ preventScroll: true }); } catch (_) {} } };
+const plCmd = (event, extra) => { const f = plFrameEl(); if (f && f.contentWindow) { try { f.contentWindow.postMessage({ event, ...(extra || {}) }, '*'); } catch (_) {} } };
+const plTogglePlay = () => { plPlayState = !plPlayState; plCmd(plPlayState ? 'play' : 'pause'); };
+const plStepVol = (dir) => { plVolState = clamp(Math.round((plVolState + dir * 0.15) * 100) / 100, 0, 1); plCmd('setVolume', { volume: plVolState }); };
+const plToggleMute = () => { plMutedState = !plMutedState; plCmd('setMute', { mute: plMutedState }); };
+const kbdArmed = () => {
+  if (!plFrameEl()) return false;
+  const t = document.activeElement;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return false;
+  if (document.getElementById('searchOverlay') && document.getElementById('searchOverlay').classList.contains('open')) return false;
+  if (moreSheet && moreSheet.isConnected) return false;
+  if (reportModal && reportModal.isConnected) return false;
+  return true;
+};
+const plFullscreenToggle = () => {
+  const shell = document.getElementById('playerShell');
+  if (!shell) return;
+  if (document.fullscreenElement) { if (document.exitFullscreen) document.exitFullscreen().catch(() => {}); }
+  else if (shell.requestFullscreen) shell.requestFullscreen().catch(() => {});
+};
+const plToggleEps = () => {
+  if (!document.getElementById('plEps')) return;
+  if (epOpen && epCloseFn) epCloseFn(); else if (window.openEpOverlay) window.openEpOverlay();
+};
+const plTvStep = (dir) => {
+  const row = document.getElementById('watchEpRow');
+  if (!row) return;
+  const cur = (location.hash || '').match(/\/watch\/tv\/\d+\/\d+\/(\d+)/);
+  const curEp = cur ? +cur[1] : null;
+  const cards = [...row.querySelectorAll('.ep-card')];
+  let i = curEp != null ? cards.findIndex(c => { const m = (c.getAttribute('onclick') || '').match(/\/watch\/tv\/\d+\/\d+\/(\d+)/); return m && +m[1] === curEp; }) : -1;
+  const target = i >= 0 ? cards[i + dir] : null;
+  if (target) target.click();
+};
+const plNextServer = () => {
+  const tabs = document.getElementById('srvTabs');
+  if (!tabs) return;
+  const btns = [...tabs.querySelectorAll('.server-tab')];
+  if (btns.length < 2) return;
+  const cur = btns.findIndex(b => b.classList.contains('active'));
+  btns[(cur < 0 ? 0 : cur + 1) % btns.length].click();
+};
+/* liquid-glass keyboard shortcuts overlay */
+const keysHTML = `<div class="keys-overlay" id="keysOverlay"><div class="keys-card">
+  <div class="keys-head"><h3>${icon('kbd', 'inline')} Keyboard shortcuts</h3><button class="pl-fs" id="keysClose" title="Close">${icon('x')}</button></div>
+  <div class="keys-grid">
+    ${[['Space', 'Play / pause'], ['←  →', 'Seek −10s / +10s'], ['↑  ↓', 'Volume up / down'], ['J  L', 'Seek −10s / +10s'], ['M', 'Mute'], ['F', 'Fullscreen'], ['E', 'Episodes (TV)'], ['N  P', 'Next / previous episode'], ['S', 'Next server'], ['H', 'Home'], ['?', 'Show this help'], ['Esc', 'Close overlays']].map(([k, d]) => `<div class="keys-row"><kbd>${esc(k)}</kbd><span>${esc(d)}</span></div>`).join('')}
+  </div>
+</div></div>`;
+function toggleKeysOverlay() {
+  const old = document.getElementById('keysOverlay');
+  if (old) { old.classList.remove('open'); setTimeout(() => old.remove(), 260); return; }
+  /* keysHTML already carries the .keys-overlay wrapper — insert it directly so
+     the .open class lands on the visible overlay, not a hidden wrapper div */
+  document.body.insertAdjacentHTML('beforeend', keysHTML);
+  const ov = document.getElementById('keysOverlay');
+  requestAnimationFrame(() => ov.classList.add('open'));
+  $('#keysClose', ov).addEventListener('click', () => { ov.classList.remove('open'); setTimeout(() => ov.remove(), 260); });
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) { ov.classList.remove('open'); setTimeout(() => ov.remove(), 260); } });
+}
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!kbdArmed()) return;
+  const k = e.key, kk = k.toLowerCase();
+  if (kk === '?') { e.preventDefault(); toggleKeysOverlay(); return; }
+  if (k === 'Escape') {
+    if (document.getElementById('keysOverlay')) { e.preventDefault(); toggleKeysOverlay(); }
+    return;
+  }
+  if (kk === ' ') {
+    e.preventDefault();
+    const sh = $('.pl-shield');
+    if (sh && !sh.classList.contains('released')) { if (plReleaseShield) plReleaseShield(); return; }
+    plFocus(); plTogglePlay();
+    return;
+  }
+  /* while the help overlay is up, only ?/Esc act on it — F/S/H etc. must not
+     fire behind the glass */
+  if (document.getElementById('keysOverlay')) { if (kk === '?') toggleKeysOverlay(); return; }
+  switch (kk) {
+    case 'arrowleft': case 'j': e.preventDefault(); plFocus(); plCmd('seekBy', { by: -10 }); return;
+    case 'arrowright': case 'l': e.preventDefault(); plFocus(); plCmd('seekBy', { by: 10 }); return;
+    case 'arrowup': e.preventDefault(); plFocus(); plStepVol(1); return;
+    case 'arrowdown': e.preventDefault(); plFocus(); plStepVol(-1); return;
+    case 'm': e.preventDefault(); plFocus(); plToggleMute(); return;
+    case 'f': e.preventDefault(); plFullscreenToggle(); return;
+    case 'e': e.preventDefault(); plToggleEps(); return;
+    case 'n': e.preventDefault(); plTvStep(1); return;
+    case 'p': e.preventDefault(); plTvStep(-1); return;
+    case 's': e.preventDefault(); plNextServer(); return;
+    case 'h': e.preventDefault(); navigate('#/'); return;
+  }
+});
+
 /* ---- Overlayed scrollable episode list (like streamex.sh): a glass drawer that
         opens from the player's Episodes button, with season tabs + vertical list ---- */
 let epSeasons = [];
@@ -1330,7 +1453,7 @@ let epOpen = false;
 let epCloseFn = null;
 /* single global Escape handler — registered once, routed through epCloseFn so
    navigating between TV shows never stacks duplicate keydown listeners */
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && epCloseFn) epCloseFn(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && epCloseFn && !document.getElementById('keysOverlay')) epCloseFn(); });
 /* side panel closes when clicking anywhere outside it (or the Episodes button) */
 document.addEventListener('click', (e) => {
   if (epOpen && epCloseFn && !e.target.closest('.ep-overlay') && !e.target.closest('#plEps')) epCloseFn();
