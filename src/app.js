@@ -1374,6 +1374,8 @@ function buildSearchPopup() {
     list.forEach((it, i) => {
       const el = document.createElement('div');
       el.className = 'pop-item' + (i === focused ? ' focused' : '');
+      /* glass cascade: each row pops in slightly after the previous one */
+      el.style.setProperty('--pop-delay', Math.min(i * 45, 360) + 'ms');
       el.innerHTML = `<div class="thumb shimmer-thumb">${it.poster_path ? `<img src="${IMG_POSTER(it.poster_path)}" alt="" decoding="async" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err'); this.parentElement.classList.remove('shimmer-thumb')">` : `<i class="ph-play ph-sm">${icon('play')}</i>`}</div>
         <div class="info"><div class="t">${esc(it.title || it.name || '')}</div><div class="d">${it.release_date ? year(it.release_date) : it.first_air_date ? year(it.first_air_date) : ''}${it.vote_average ? ' · ★ ' + Number(it.vote_average).toFixed(1) : ''}</div></div>
         <span class="type-chip ${it.media_type === 'tv' ? 'tv' : ''}">${it.media_type === 'tv' ? 'TV' : 'MOVIE'}</span>`;
