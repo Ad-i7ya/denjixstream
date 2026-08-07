@@ -437,7 +437,10 @@ async function playHeroTrailer(hero) {
   if (!box) return;
   if (!k) { box.classList.remove('play'); return; }
   if (!box.innerHTML) {
-    box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${k}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist=${k}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen tabindex="-1"></iframe>`;
+    /* modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0 + the CSS cover-crop
+       keep YouTube's logo, title bar and controls out of view — it plays as a
+       native full-bleed trailer, not an embedded YT player */
+    box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${k}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist=${k}&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1"></iframe>`;
   }
   box.classList.add('play');
   slide.classList.add('playing');
@@ -467,7 +470,13 @@ function bindHeroCarousel() {
   };
   const next = () => show(idx + 1);
   const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-  const start = () => { stop(); timer = setInterval(next, 6000); heroTimer = timer; };
+  const start = () => {
+    /* never advance the slideshow while the cursor is parked on the hero —
+       the hover trailer keeps playing until the cursor moves away (arrows,
+       dots and the IntersectionObserver all route through this guard) */
+    if (hero.dataset.hov === '1') return;
+    stop(); timer = setInterval(next, 6000); heroTimer = timer;
+  };
   $('.hero-nav.next', hero)?.addEventListener('click', (e) => { e.stopPropagation(); next(); start(); });
   $('.hero-nav.prev', hero)?.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); start(); });
   dots.forEach(d => d.addEventListener('click', () => { show(+d.dataset.i); start(); }));
