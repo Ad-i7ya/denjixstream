@@ -1055,7 +1055,10 @@ async function viewDetail(params) {
     ${rowSection('Similar Titles', similar, `#/browse/${type}?sort=similar&id=${id}`)}
     ${footerNote()}`;
   bindWatchlistButtons();
-  $('#trailerBtn')?.addEventListener('click', () => { const v = trailer; if (v) window.open(`https://www.youtube.com/embed/${v.key}?autoplay=1`, '_blank', 'noopener'); });
+  $('#trailerBtn')?.addEventListener('click', () => {
+    /* stamp so the popup auto-closer lets THIS window through */
+    if (trailer) { allowPopupTs = Date.now(); window.open(`https://www.youtube.com/embed/${trailer.key}?autoplay=1`, '_blank', 'noopener'); }
+  });
   if (type === 'tv') renderTvSection(d, id);
 }
 
@@ -1128,7 +1131,7 @@ async function viewWatch(params) {
     return;
   }
   srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">The player is shielded from stray-click ads. If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:10px">Ads are auto-blocked: any popup a server tries to open is closed instantly. If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
@@ -1143,15 +1146,17 @@ async function viewWatch(params) {
       <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
       <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
     </div>
-    <!-- Ad-proof player: every embed runs in a restrictive sandbox — NO
-         allow-popups and NO allow-top-navigation — so the embed's ad JS
-         physically cannot open new tabs or hijack the page, no matter what
-         the user clicks. The pl-shield swallows the FIRST tap (the one
-         interaction clickjacking ad-overlays hook); tap once to enable
+    <!-- Ad-proof player: embeds run with allow-popups so their player logic
+         works normally (a restrictive no-popups sandbox made several servers
+         error out). Every popup the embed opens lands on THIS window — the
+         popup auto-closer in boot() catches the popup event and slams it shut
+         before an ad tab can appear. allow-top-navigation stays OFF so the
+         embed can never hijack our page. The pl-shield swallows the FIRST tap
+         (the interaction clickjacking ad-overlays hook); tap once to enable
          controls. No referrerpolicy override: embeds rely on the origin
          referrer to resolve streams. -->
     <div class="pl-shield" aria-hidden="true"><span class="pl-shield-chip">${icon('play')}<em>Tap to enable controls</em></span></div>
-    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads allow-modals allow-orientation-lock" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-downloads allow-modals allow-orientation-lock" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];
@@ -1441,6 +1446,41 @@ function pauseShimmerOffscreen() {
   mo.observe(document.body, { childList: true, subtree: true });
   scan(document);
 }
+/* ---------- Ad popup auto-closer ----------
+   Embeds run with sandbox allow-popups so their players work on every server.
+   Any window they open (ads, popunders, "open app" spam) is owned by THIS
+   window — we catch the popup event and close it instantly, so an ad tab can
+   never appear. Our own Trailer button stamps allowPopupTs so the window it
+   opens is let through. */
+let allowPopupTs = 0;
+/* legit destinations that are always allowed to open (Trailer, our Telegram
+   links, etc.) — never auto-closed, even while the player is on screen */
+const POPUP_ALLOW = /^(https?:\/\/)?([a-z0-9-]+\.)?(t\.me|telegram\.me|youtube\.com|youtu\.be|github\.com)\b/i;
+const popupBlocked = (url) => !!url && !POPUP_ALLOW.test(String(url));
+/* second net: if the browser doesn't emit a popup event (older engines),
+   our own window.open is wrapped so a stray popup from player-side code can
+   be killed before it paints. Cross-origin embeds bypass this — the popup
+   event above is what catches theirs. */
+{
+  const _open = window.open.bind(window);
+  window.open = function (url, name, feats) {
+    const w = _open(url, name, feats);
+    if (w && !w.closed && document.getElementById('plFrame') && Date.now() - allowPopupTs >= 2000 && popupBlocked(url)) {
+      try { w.close(); } catch (_) {}
+    }
+    return w;
+  };
+}
+window.addEventListener('popup', (e) => {
+  const w = e && e.window;
+  /* only police while a player is on screen — never during normal browsing */
+  if (!document.getElementById('plFrame')) return;
+  /* the Trailer button opens a real YouTube window 2s grace */
+  if (Date.now() - allowPopupTs < 2000) return;
+  const url = e && (e.url || '');
+  if (w && !w.closed && typeof w.close === 'function' && popupBlocked(url)) { try { w.close(); } catch (_) {} }
+  e.preventDefault && e.preventDefault();
+});
 function boot() {
   buildSearchPopup();
   new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
