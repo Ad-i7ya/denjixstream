@@ -150,13 +150,15 @@ const kvPut = async (kv, key, val, ttlSeconds) => { try { await kv.put(key, JSON
 const DAY_TTL = 365 * 86400;
 /* cfg is read on every beacon/siteconfig — cache per isolate for 30s */
 let cfgCache = { t: 0, v: null };
-async function siteConfig(env) {
-  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0', tagline: null, devs: null, heroTrailer: true, anime: true };
+async function siteConfig(env, fresh = false) {
+  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0', tagline: null, devs: null, heroTrailer: true, anime: true, siteName: null, hero: true, contactBtn: true, watchlist: true, history: true, legalText: null };
   const kv = env.DENJIX_KV;
   if (!kv) return out;
-  if (cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
+  if (!fresh && cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
   const m = await kvGet(kv, 'cfg', {});
-  out.announcement = (m.announcement && m.announcement.text) ? m.announcement : null;
+  out.announcement = (m.announcement && m.announcement.text)
+    ? { text: String(m.announcement.text).slice(0, 240), enabled: !!m.announcement.enabled, kind: ['info', 'success', 'warning'].includes(m.announcement.kind) ? m.announcement.kind : 'info', link: String(m.announcement.link || '').slice(0, 300) || null }
+    : null;
   out.maintenance = m.maintenance === true;
   out.statsEnabled = m.statsEnabled !== false;
   if (Array.isArray(m.servers) && m.servers.length) out.servers = m.servers;
@@ -164,6 +166,12 @@ async function siteConfig(env) {
   out.tagline = String(m.tagline || '').slice(0, 80) || null;
   out.heroTrailer = m.heroTrailer !== false;
   out.anime = m.anime !== false;
+  out.siteName = String(m.siteName || '').trim().slice(0, 40) || null;
+  out.hero = m.hero !== false;
+  out.contactBtn = m.contactBtn !== false;
+  out.watchlist = m.watchlist !== false;
+  out.history = m.history !== false;
+  out.legalText = String(m.legalText || '').slice(0, 300) || null;
   if (Array.isArray(m.devs)) out.devs = m.devs.slice(0, 6).map(d => ({ name: String(d.name || '').slice(0, 40), handle: String(d.handle || '').replace(/^@/, '').slice(0, 40) })).filter(d => d.name && d.handle);
   cfgCache = { t: Date.now(), v: out };
   return out;
@@ -288,7 +296,7 @@ export default {
     if (path.startsWith('/api/tmdb/')) return tmdbHandler(request, url, env, ctx);
     if (path === '/api/stream') return streamHandler(request, url, env, ctx);
     if (path === '/api/beacon' && request.method === 'POST') return beaconHandler(request, env);
-    if (path === '/api/siteconfig') return json(await siteConfig(env));
+    if (path === '/api/siteconfig') return json(await siteConfig(env, true)); /* explicit GET always fresh — admin controls feel live */
     if (path.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return serveApp(request, env, siteName, ctx);
   },

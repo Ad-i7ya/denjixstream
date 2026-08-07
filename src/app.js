@@ -338,12 +338,13 @@ $('#moreBtn').addEventListener('click', () => {
       <a href="#/categories">${icon('film')}<span>Categories</span></a>
       <a href="#/anime" data-nav="anime">${icon('sparkles')}<span>Anime</span></a>
       <a href="#/browse/tv?sort=top_rated">${icon('star')}<span>Top Rated</span></a>
-      <a href="#/history">${icon('clock')}<span>History</span></a>
+      <a href="#/history" data-nav="history">${icon('clock')}<span>History</span></a>
       <a href="#/legal">${icon('info')}<span>Legal</span></a>
       <a href="https://t.me/te4m1ord" target="_blank" rel="noopener">${icon('telegram')}<span>Contact</span></a>
     </div>
   </div>`;
   if (siteCfg && siteCfg.anime === false) $('[data-nav="anime"]', moreSheet)?.remove(); /* anime disabled from the panel */
+  if (siteCfg && siteCfg.history === false) $('[data-nav="history"]', moreSheet)?.remove(); /* history disabled from the panel */
   document.body.appendChild(moreSheet);
   $('#moreSheetClose', moreSheet).addEventListener('click', closeMoreSheet);
   requestAnimationFrame(() => moreSheet.classList.add('open'));
@@ -677,7 +678,7 @@ async function viewHome() {
       <div class="row scrollbar-hide">${contItems.map(continueCard).join('')}</div>
     </div>
   </section>` : '';
-  main.innerHTML = heroCarousel(heroItems) +
+  main.innerHTML = (siteCfg && siteCfg.hero === false ? '' : heroCarousel(heroItems)) +
     contRow +
     rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending') +
     rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending') +
@@ -1467,16 +1468,29 @@ function beacon(ev, extra = {}) {
 let siteCfg = null;
 function applySiteConfig() {
   const cfg = siteCfg || {};
-  const ann = cfg.announcement && cfg.announcement.enabled ? cfg.announcement : null;
+  const ann = cfg.announcement && cfg.announcement.enabled && cfg.announcement.text ? cfg.announcement : null;
+  /* announcement banner — kinds: info | success | warning, optional link */
   let banner = $('#announceBanner');
-  if (ann && ann.text) {
+  if (ann) {
     if (!banner) { banner = document.createElement('div'); banner.id = 'announceBanner'; banner.className = 'announce-banner'; document.body.appendChild(banner); }
-    if (banner.dataset.t !== ann.text) {
-      banner.dataset.t = ann.text;
-      banner.innerHTML = `<span>${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em></span><button id="annClose" aria-label="Dismiss announcement">${icon('x')}</button>`;
+    const kind = ['info', 'success', 'warning'].includes(ann.kind) ? ann.kind : 'info';
+    const key = ann.text + '|' + kind + '|' + (ann.link || '');
+    if (banner.dataset.t !== key) {
+      banner.dataset.t = key;
+      banner.className = 'announce-banner kind-' + kind;
+      const inner = ann.link
+        ? `<a class="ann-link" href="${esc(ann.link)}" target="_blank" rel="noopener">${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em>${icon('external', 'inline')}</a>`
+        : `<span>${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em></span>`;
+      banner.innerHTML = inner + `<button id="annClose" aria-label="Dismiss announcement">${icon('x')}</button>`;
       $('#annClose', banner)?.addEventListener('click', () => banner.remove());
     }
   } else if (banner) banner.remove();
+  /* site name override — title bar, sidebar logo, footer brand */
+  const nm = (cfg.siteName || '').trim();
+  if (nm) {
+    document.title = nm;
+    $$('.logo a, .foot-brand').forEach(el => { el.innerHTML = LOGO_MARK + LOGO_WORD(nm); });
+  }
   /* tagline under the sidebar logo (admin-driven) */
   const tg = $('#logoTag');
   if (tg) { const v = (cfg.tagline || '').trim(); tg.textContent = v; tg.style.display = v ? '' : 'none'; }
@@ -1487,10 +1501,18 @@ function applySiteConfig() {
       box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${chip(cfg.devs[0])}${chip(cfg.devs[1])}`;
     });
   }
-  /* hide the anime entry points when the owner disables the section */
-  const animeOff = cfg.anime === false;
-  $$('[data-nav="anime"]').forEach(a => a.classList.toggle('hidden', animeOff));
-  $$('.foot-links a[href="#/anime"]').forEach(a => a.classList.toggle('hidden', animeOff));
+  /* section toggles from the panel: anime / watchlist / history / hero / contact */
+  $$('[data-nav="anime"]').forEach(a => a.classList.toggle('hidden', cfg.anime === false));
+  $$('.foot-links a[href="#/anime"]').forEach(a => a.classList.toggle('hidden', cfg.anime === false));
+  $$('[data-nav="watchlist"]').forEach(a => a.classList.toggle('hidden', cfg.watchlist === false));
+  $$('[data-nav="history"]').forEach(a => a.classList.toggle('hidden', cfg.history === false));
+  $$('.foot-links a[href="#/watchlist"]').forEach(a => a.classList.toggle('hidden', cfg.watchlist === false));
+  $$('.foot-links a[href="#/history"]').forEach(a => a.classList.toggle('hidden', cfg.history === false));
+  const hc = $('#heroCaro');
+  if (hc) hc.classList.toggle('hidden', cfg.hero === false);
+  $$('.contact-btn').forEach(a => a.classList.toggle('hidden', cfg.contactBtn === false));
+  /* footer legal line */
+  if (cfg.legalText) $$('.foot-legal').forEach(p => { p.textContent = cfg.legalText; });
   let mo = $('#maintOverlay');
   if (cfg.maintenance) {
     if (!mo) { mo = document.createElement('div'); mo.id = 'maintOverlay'; mo.className = 'maint-overlay'; document.body.appendChild(mo); }
@@ -1581,6 +1603,11 @@ function boot() {
   new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
   pauseShimmerOffscreen();
   loadSiteConfig();
+  /* keep admin-driven site controls live: refresh on navigation, on tab focus,
+     and on a 15s heartbeat (the explicit /api/siteconfig GET is cache-bypassed) */
+  setInterval(loadSiteConfig, 15000);
+  window.addEventListener('hashchange', loadSiteConfig);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadSiteConfig(); });
   try { if (!sessionStorage.getItem('dx_visited')) { sessionStorage.setItem('dx_visited', '1'); beacon('visit'); } } catch (_) {}
   router();
 }
