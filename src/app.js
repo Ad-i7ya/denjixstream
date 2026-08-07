@@ -1459,7 +1459,8 @@ document.addEventListener('keydown', (e) => {
    No personal data beyond standard analytics (IP is stored server-side only). */
 function beacon(ev, extra = {}) {
   try {
-    const payload = { ev, page: location.hash || '/', ref: document.referrer ? String(document.referrer).slice(0, 300) : '', scr: (window.screen && screen.width) ? screen.width + 'x' + screen.height : '', lang: (navigator.language || '').slice(0, 12), tz: String(Math.round(-new Date().getTimezoneOffset() / 60 * 2) / 2), ...extra };
+    const conn = (navigator.connection && navigator.connection.effectiveType) || '';
+    const payload = { ev, page: location.hash || '/', ref: document.referrer ? String(document.referrer).slice(0, 300) : '', scr: (window.screen && screen.width) ? screen.width + 'x' + screen.height : '', lang: (navigator.language || '').slice(0, 12), tz: String(Math.round(-new Date().getTimezoneOffset() / 60 * 2) / 2), conn, mem: navigator.deviceMemory ? String(navigator.deviceMemory) : '', cores: navigator.hardwareConcurrency ? String(navigator.hardwareConcurrency) : '', ...extra };
     const body = JSON.stringify(payload);
     if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'application/json' }));
     else fetch('/api/beacon', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
@@ -1482,9 +1483,19 @@ function applySiteConfig() {
         ? `<a class="ann-link" href="${esc(ann.link)}" target="_blank" rel="noopener">${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em>${icon('external', 'inline')}</a>`
         : `<span>${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em></span>`;
       banner.innerHTML = inner + `<button id="annClose" aria-label="Dismiss announcement">${icon('x')}</button>`;
-      $('#annClose', banner)?.addEventListener('click', () => banner.remove());
+      $('#annClose', banner)?.addEventListener('click', () => {
+        banner.classList.add('dismissing');
+        setTimeout(() => banner.remove(), 340);
+      });
+      /* iOS popup replay — when the message changes, pop it in again */
+      banner.style.animation = 'none';
+      void banner.offsetHeight;
+      banner.style.animation = '';
     }
-  } else if (banner) banner.remove();
+  } else if (banner && !banner.classList.contains('dismissing')) {
+    banner.classList.add('dismissing');
+    setTimeout(() => banner.remove(), 340);
+  }
   /* site name override — title bar, sidebar logo, footer brand */
   const nm = (cfg.siteName || '').trim();
   if (nm) {

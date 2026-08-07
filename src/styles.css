@@ -969,7 +969,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
   -webkit-backdrop-filter: var(--blur-soft); backdrop-filter: var(--blur-soft);
   border: 1px solid var(--glass-border); box-shadow: var(--shadow-glass), var(--highlight-inset);
   color: #fff; font-size: 13px; font-weight: 600; letter-spacing: -.01em;
-  animation: bannerIn .5s var(--ease-spring) both;
+  animation: bannerIn .62s cubic-bezier(.34, 1.56, .64, 1) both;
 }
 .announce-banner svg { width: 15px; height: 15px; color: #0a84ff; flex-shrink: 0; }
 .announce-banner.kind-success { border-color: rgba(48, 209, 88, .5); background: linear-gradient(180deg, rgba(48,209,88,.16), rgba(48,209,88,.06)); }
@@ -981,7 +981,14 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .announce-banner em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .announce-banner button { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px; display: flex; flex-shrink: 0; }
 .announce-banner button:hover { color: #fff; }
-@keyframes bannerIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* iOS-style popup: spring drop-in from the top with a gentle overshoot */
+@keyframes bannerIn {
+  0% { opacity: 0; transform: translate(-50%, -140%) scale(.92); }
+  60% { opacity: 1; transform: translate(-50%, 9px) scale(1.025); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.announce-banner.dismissing { animation: bannerOut .32s cubic-bezier(.4, 0, .6, 1) both; pointer-events: none; }
+@keyframes bannerOut { to { opacity: 0; transform: translate(-50%, -120%) scale(.94); } }
 /* maintenance overlay (admin-driven) */
 .maint-overlay {
   position: fixed; inset: 0; z-index: 200;

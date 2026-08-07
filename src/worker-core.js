@@ -143,7 +143,12 @@ const UA_PARTS = (ua) => {
   const mVer = (re) => { const m = s.match(re); return m ? m[1].split('.')[0] : ''; };
   const ver = mVer(/(?:Edg|OPR|Firefox|Chrome|Safari|CriOS|FxiOS|SamsungBrowser|YaBrowser)\/([\d.]+)/) || '';
   const device = /iPad/.test(s) ? 'Tablet' : /iPhone/.test(s) ? 'Phone' : /Android/.test(s) ? (/Mobile/.test(s) ? 'Phone' : 'Tablet') : /Touch/.test(s) ? 'Tablet' : 'Desktop';
-  return { os, browser, device, ver };
+  /* exact device model from the UA — e.g. SM-G991B, iPhone15,2, Pixel 7a, Redmi Note 12 */
+  const model = (() => {
+    const re = /SM-[A-Za-z0-9]+|Pixel\s?[0-9][a-zA-Z]*|iPhone[0-9]+,[0-9]+|iPad[0-9]+,[0-9]+|Galaxy [A-Za-z0-9 ]{1,20}|OnePlus [A-Za-z0-9 ]{1,15}|Xiaomi [A-Za-z0-9 ]{1,15}|Redmi [A-Za-z0-9 ]{1,15}|POCO [A-Za-z0-9 ]{1,15}|HUAWEI [A-Za-z0-9-]{1,15}|Nexus [0-9]/;
+    const m = s.match(re); return m ? m[0] : '';
+  })();
+  return { os, browser, device, ver, model };
 };
 const kvGet = async (kv, key, fallback) => { try { const v = await kv.get(key, 'json'); return v === null ? fallback : v; } catch (_) { return fallback; } };
 /* only allow safe link schemes for admin-driven links (blocks javascript:/data:) */
@@ -196,11 +201,31 @@ async function beaconHandler(request, env) {
   const evType = ['page', 'watch', 'search', 'visit', 'error'].includes(rawEv) ? rawEv : 'page';
   const ev = {
     t, ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 64),
-    dv: p.device, os: p.os, br: p.browser, bv: p.ver, co: (request.headers.get('cf-ipcountry') || '').slice(0, 8),
+    dv: p.device, os: p.os, br: p.browser, bv: p.ver, model: p.model || '', co: (request.headers.get('cf-ipcountry') || '').slice(0, 8),
+    city: (request.headers.get('cf-ipcity') || '').slice(0, 60), region: (request.headers.get('cf-region') || '').slice(0, 40), asn: (request.headers.get('cf-asn') || '').slice(0, 16),
     pg: String(body.page || '/').slice(0, 200), ev: evType,
     ti: String(body.title || '').slice(0, 200), q: String(body.q || '').slice(0, 120),
     rf: String(body.ref || '').slice(0, 300), sc: String(body.scr || '').slice(0, 24), lg: String(body.lang || '').slice(0, 12), tz: String(body.tz || '').slice(0, 8),
+    conn: String(body.conn || '').slice(0, 12), mem: String(body.mem || '').slice(0, 8), cores: String(body.cores || '').slice(0, 8),
   };
+  /* primary path: permanent event log in D1 (no caps, no TTL, survives every deploy) */
+  const d1 = env.DENJIX_D1;
+  if (d1) {
+    try {
+      if (!(await kvGet(kv, 'd1schema', 0))) {
+        await d1.batch([
+          d1.prepare('CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, ip TEXT, device TEXT, os TEXT, browser TEXT, bver TEXT, model TEXT, country TEXT, city TEXT, region TEXT, asn TEXT, page TEXT, ev TEXT, title TEXT, q TEXT, ref TEXT, screen TEXT, lang TEXT, tz TEXT, conn TEXT, mem TEXT, cores TEXT)'),
+          d1.prepare('CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)'),
+          d1.prepare('CREATE INDEX IF NOT EXISTS idx_events_ip ON events(ip)'),
+        ]);
+        await kvPut(kv, 'd1schema', 1);
+      }
+      await d1.prepare('INSERT INTO events (ts, ip, device, os, browser, bver, model, country, city, region, asn, page, ev, title, q, ref, screen, lang, tz, conn, mem, cores) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .bind(ev.t, ev.ip, ev.dv, ev.os, ev.br, ev.bv, ev.model, ev.co, ev.city, ev.region, ev.asn, ev.pg, ev.ev, ev.ti, ev.q, ev.rf, ev.sc, ev.lg, ev.tz, ev.conn, ev.mem, ev.cores)
+        .run();
+      return json({ ok: true });
+    } catch (_) { /* fall back to KV day blobs below */ }
+  }
   const key = 'day:' + new Date(t).toISOString().slice(0, 10);
   const blob = await kvGet(kv, key, { d: key.slice(4), n: 0, counts: { ev: {}, device: {}, os: {}, br: {}, co: {}, pg: {}, ti: {}, q: {}, sc: {}, lg: {} }, visitors: {}, events: [] });
   const inc = (o, k) => { if (o && k) o[k] = (o[k] || 0) + 1; };
