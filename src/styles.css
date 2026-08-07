@@ -23,8 +23,8 @@
   --shadow-glass: 0 12px 44px rgba(0, 0, 0, 0.55);
   --shadow-lift: 0 22px 60px rgba(0, 0, 0, 0.6);
   --highlight-inset: inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  --font-logo: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Manrope', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-logo: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Manrope', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -120,14 +120,14 @@ body.resizing * { cursor: col-resize !important; }
 .logo a:hover .logo-mark { transform: rotate(-6deg) scale(1.05); }
 .logo-word {
   font-family: var(--font-logo);
-  font-size: 22px; font-weight: 600; letter-spacing: -0.035em;
-  background: linear-gradient(180deg, #ffffff 32%, #d9dde9 100%);
+  font-size: 22px; font-weight: 700; letter-spacing: -0.03em;
+  background: linear-gradient(180deg, #ffffff 30%, #dde1ec 100%);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
-/* two-tone Apple wordmark: the “Xstream” half wears the brand blue gradient */
+/* two-tone Apple wordmark: the “Xstream” half wears the brand aurora gradient */
 .logo-accent {
-  font-weight: 700; /* 650 is not a loaded Inter weight — 700 renders deterministically everywhere */
-  background: linear-gradient(100deg, #7fc2ff 0%, #4db0ff 45%, #5e5ce6 100%);
+  font-weight: 800;
+  background: linear-gradient(100deg, #7fc2ff 0%, #4db0ff 45%, #a66aff 100%);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
 .side-section {

@@ -72,24 +72,31 @@ const ICONS = {
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cls}">${ICONS[name] || ''}</svg>`;
 
 /* ---------------- LOGO MARK (Apple-minimal play tile) ---------------- */
+/* Aurora X — the “X” of Xstream as two crossing gradient ribbons with a play
+   triangle fused at the crossing point + a sparkle. Distinctive, kinetic and
+   unmistakably streaming — no box-with-play-button anywhere. */
 const LOGO_MARK = `<svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
+    <linearGradient id="dxmX" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ac8fa"/><stop offset=".5" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/>
+    </linearGradient>
+    <radialGradient id="dxmAur" cx=".32" cy=".26" r="1.05">
+      <stop offset="0" stop-color="#5ac8fa" stop-opacity=".55"/>
+      <stop offset=".5" stop-color="#0a84ff" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#bf5af2" stop-opacity="0"/>
+    </radialGradient>
     <linearGradient id="dxmTile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1e1e27"/><stop offset="1" stop-color="#0a0a10"/>
-    </linearGradient>
-    <linearGradient id="dxmPlay" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e7ebf6"/>
-    </linearGradient>
-    <linearGradient id="dxmAcc" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#4db0ff"/><stop offset="1" stop-color="#5e5ce6"/>
+      <stop offset="0" stop-color="#171722"/><stop offset="1" stop-color="#0a0a12"/>
     </linearGradient>
   </defs>
-  <rect x="2.5" y="2.5" width="59" height="59" rx="16" fill="url(#dxmTile)"/>
-  <rect x="2.5" y="2.5" width="59" height="59" rx="16" stroke="rgba(255,255,255,.22)" stroke-width="1.3"/>
-  <path d="M9 16.5C9 11.9 12.9 8 17.5 8h29c4.6 0 8.5 3.9 8.5 8.5v6H9v-6Z" fill="rgba(255,255,255,.06)"/>
-  <path d="M24.4 21.6v20.8l15.8-10.4-15.8-10.4Z" fill="url(#dxmPlay)" stroke="url(#dxmPlay)" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <rect x="46.5" y="27.6" width="6.6" height="2.9" rx="1.45" fill="url(#dxmAcc)"/>
-  <rect x="45" y="33.4" width="8.1" height="2.9" rx="1.45" fill="url(#dxmAcc)" opacity=".5"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="17" fill="url(#dxmTile)"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="17" fill="url(#dxmAur)"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="17" stroke="rgba(255,255,255,.22)" stroke-width="1.3"/>
+  <path d="M9 16.5C9 11.9 12.9 8 17.5 8h29c4.6 0 8.5 3.9 8.5 8.5v6H9v-6Z" fill="rgba(255,255,255,.07)"/>
+  <path d="M20.5 19.5 L43.5 44.5" stroke="url(#dxmX)" stroke-width="8.5" stroke-linecap="round"/>
+  <path d="M43.5 19.5 L20.5 44.5" stroke="url(#dxmX)" stroke-width="8.5" stroke-linecap="round"/>
+  <path d="M28.4 26.4 V37.6 L37 32 Z" fill="#fff" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="31" cy="13.5" r="1.9" fill="#5ac8fa" opacity=".95"/>
 </svg>`;
 
 /* Apple-style wordmark — "Denji" in white, "Xstream" in the brand blue accent
