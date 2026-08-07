@@ -372,10 +372,11 @@ function heroSlide(m) {
   const title = m.title || m.name;
   const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
   const med = m.media_type || (m.first_air_date ? 'tv' : 'movie');
-  return `<div class="hero-slide">
+  return `<div class="hero-slide" data-id="${m.id}" data-media="${med}">
     ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" data-hi="${IMG_HERO(m.backdrop_path)}" alt="" loading="lazy" decoding="async">` : ''}
     <div class="blob b1"></div><div class="blob b2"></div>
     <div class="shade"></div>
+    <div class="hero-trailer"></div>
     <div class="content">
       <div class="tag">${med === 'tv' ? 'Featured TV Series' : 'Featured Movie'}</div>
       <h1>${esc(title)}</h1>
@@ -406,10 +407,46 @@ function heroCarousel(items) {
 }
 let heroTimer = null;
 function stopHeroTimer() { if (heroTimer) { clearInterval(heroTimer); heroTimer = null; } }
+/* Netflix-style: hover over the hero and the current slide's trailer plays muted
+   inline; moving away stops it. Trailers are fetched lazily once per title and
+   cached, and only on hover-capable devices (touch never autoplays video). */
+const heroTrailerCache = {};
+function stopHeroTrailer(hero) {
+  const t = hero && $('.hero-trailer', hero);
+  if (t) { t.innerHTML = ''; t.classList.remove('play'); }
+  const s = hero && $('.hero-slide.active', hero);
+  if (s) s.classList.remove('playing');
+}
+async function playHeroTrailer(hero) {
+  const slide = hero && $('.hero-slide.active', hero);
+  if (!slide) return;
+  const id = slide.dataset.id, med = slide.dataset.media;
+  if (!id) return;
+  const key = `${med}:${id}`;
+  let k = heroTrailerCache[key];
+  if (k === undefined) {
+    k = await api(`/${med}/${id}/videos?language=en-US`).then(r => {
+      const v = (r.results || []).find(x => x.type === 'Trailer' && x.site === 'YouTube');
+      return v ? v.key : null;
+    }).catch(() => null);
+    heroTrailerCache[key] = k;
+  }
+  /* the mouse may have left while we fetched — never inject into a cleared slide */
+  if (hero.dataset.hov !== '1' || !slide.classList.contains('active')) return;
+  const box = $('.hero-trailer', slide);
+  if (!box) return;
+  if (!k) { box.classList.remove('play'); return; }
+  if (!box.innerHTML) {
+    box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${k}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist=${k}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen tabindex="-1"></iframe>`;
+  }
+  box.classList.add('play');
+  slide.classList.add('playing');
+}
 function bindHeroCarousel() {
   const hero = $('#heroCaro'); if (!hero) return;
   const slides = $$('.hero-slide', hero); if (!slides.length) return;
   const dots = $$('.hero-dot', hero);
+  const canHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   let idx = 0, timer = null;
   const show = (i) => {
     idx = (i + slides.length) % slides.length;
@@ -420,9 +457,13 @@ function bindHeroCarousel() {
       if (k === idx) {
         const img = $('img.backdrop', s);
         if (img && img.dataset.hi && img.src !== img.dataset.hi) img.src = img.dataset.hi;
+      } else {
+        const t = $('.hero-trailer', s);
+        if (t) { t.innerHTML = ''; t.classList.remove('play'); }
       }
     });
     dots.forEach((d, k) => d.classList.toggle('active', k === idx));
+    if (canHover && hero.dataset.hov === '1') playHeroTrailer(hero);
   };
   const next = () => show(idx + 1);
   const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
@@ -430,8 +471,8 @@ function bindHeroCarousel() {
   $('.hero-nav.next', hero)?.addEventListener('click', (e) => { e.stopPropagation(); next(); start(); });
   $('.hero-nav.prev', hero)?.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); start(); });
   dots.forEach(d => d.addEventListener('click', () => { show(+d.dataset.i); start(); }));
-  hero.addEventListener('mouseenter', stop);
-  hero.addEventListener('mouseleave', start);
+  hero.addEventListener('mouseenter', () => { stop(); if (canHover) { hero.dataset.hov = '1'; playHeroTrailer(hero); } });
+  hero.addEventListener('mouseleave', () => { hero.dataset.hov = '0'; stopHeroTrailer(hero); start(); });
   let tx = 0;
   hero.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; stop(); }, { passive: true });
   hero.addEventListener('touchend', (e) => {
@@ -748,6 +789,24 @@ async function viewAnime() {
   load('mix');
 }
 
+const searchPreview = async () => {
+  const box = $('#searchResults'); if (!box) return;
+  box.innerHTML = SKELETON_GRID;
+  const [tm, tt, pop] = await Promise.all([
+    api('/trending/movie/day?language=en-US').then(r => r.results).catch(() => []),
+    api('/trending/tv/day?language=en-US').then(r => r.results).catch(() => []),
+    api('/movie/popular?language=en-US').then(r => r.results).catch(() => []),
+  ]);
+  const mix = [...tm.map(m => ({ ...m, media_type: 'movie' })), ...tt.map(m => ({ ...m, media_type: 'tv' }))]
+    .filter(m => m.poster_path || m.backdrop_path);
+  box.innerHTML =
+    `<h2 class="section-title" style="margin:6px 0 14px">${icon('sparkles', 'inline')} Trending right now</h2>` +
+    (mix.length ? `<div class="grid">${mix.slice(0, 18).map(m => backdropCard(m)).join('')}</div>`
+      : `<div class="empty-state">${icon('search')}<h3>Nothing trending yet</h3><p class="muted">Start typing to find movies and shows.</p></div>`) +
+    `<h2 class="section-title" style="margin:30px 0 14px">${icon('star', 'inline')} Popular picks</h2>` +
+    `<div class="grid">${pop.slice(0, 12).map(m => backdropCard(m)).join('')}</div>`;
+  bindWatchlistButtons();
+};
 async function viewSearch() {
   const q = parseQuery(location.hash.split('?')[1]);
   const query = (q.q || '').trim();
@@ -757,11 +816,12 @@ async function viewSearch() {
       <button class="chip" data-st="movie">Movies</button>
       <button class="chip" data-st="tv">TV Shows</button>
     </div>
-    <div id="searchResults">${query ? SKELETON_GRID : `<div class="empty-state">${icon('search')}<h3>Search anything</h3><p class="muted">Find movies and TV shows across the catalog.</p></div>`}</div>`;
+    <div id="searchResults">${query ? SKELETON_GRID : `<div class="skeleton" style="height:300px;border-radius:20px"></div>`}</div>`;
   const input = $('#searchInput'), tabs = $('#searchTabs');
   let st = 'multi';
   const run = debounce(async () => {
-    const v = input.value.trim(); if (!v) { $('#searchResults').innerHTML = `<div class="empty-state">${icon('search')}<h3>Search anything</h3><p class="muted">Start typing to find movies and shows.</p></div>`; return; }
+    const v = input.value.trim();
+    if (!v) { history.replaceState(null, '', '#/search'); searchPreview(); return; }
     history.replaceState(null, '', '#/search?q=' + encodeURIComponent(v));
     $('#searchResults').innerHTML = SKELETON_GRID;
     const path = st === 'multi' ? '/search/multi' : `/search/${st}`;
@@ -775,7 +835,7 @@ async function viewSearch() {
     const b = e.target.closest('.chip'); if (!b) return;
     st = b.dataset.st; $$('.chip', tabs).forEach(c => c.classList.toggle('active', c === b)); run();
   });
-  if (query) { input.value = query; run(); }
+  if (query) { input.value = query; run(); } else searchPreview();
 }
 
 async function viewDetail(params) {
@@ -918,6 +978,7 @@ async function viewWatch(params) {
     <!-- sandbox WITHOUT allow-popups / allow-top-navigation: embed players run
          normally (scripts/same-origin/forms/presentation) but their ad scripts
          (tagivi, amungus, llvpn popunders) cannot open tabs or redirect the page -->
+    <div class="pl-shield" aria-hidden="true"></div>
     <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
@@ -932,7 +993,7 @@ async function viewWatch(params) {
     clearTimeout(loadTimer);
     /* an embed that loads a page is “playing” — hide the ring; if nothing loads
        in 14s, show the animated error card instead of a silent black screen */
-    frame.addEventListener('load', () => { loaded = true; hideLoading(); });
+    frame.addEventListener('load', () => { loaded = true; hideLoading(); const sh = $('.pl-shield', shell); if (sh) sh.remove(); });
     loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000);
     $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
     $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); const el = shell; if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); });

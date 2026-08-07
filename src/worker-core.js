@@ -77,15 +77,18 @@ async function tmdbHandler(request, url, env, ctx) {
    died since the streamex list was extracted — every server below was HTTP-tested
    today for both movies AND TV. XPass leads (fast, reliable, no popups). */
 const EMBED_SERVERS = [
-  { name: 'XPass', flag: '★', rec: true, url: (t, i, s, e) => `https://play.xpass.top/e/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  /* autoplay=1 on every URL (VidGod already had autoplay=true): the embed's own
+     poster/thumbnail frame is skipped and the video starts directly — no stale
+     thumbnail, and users never have to click an ad-layered play button. */
+  { name: 'XPass', flag: '★', rec: true, url: (t, i, s, e) => `https://play.xpass.top/e/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VidGod', url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
-  { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'VSrc', url: (t, i, s, e) => `https://vsembed.ru/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'AirFlix', url: (t, i, s, e) => `https://airflix1.com/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'VSrc', url: (t, i, s, e) => `https://vsembed.ru/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'AirFlix', url: (t, i, s, e) => `https://airflix1.com/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: '2Embed', url: (t, i, s, e) => `https://www.2embed.cc/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'VidZen', url: (t, i, s, e) => `https://vidzen.fun/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'VideoEasy', url: (t, i, s, e) => `https://player.videasy.net/${t}/${i}${s ? `/${s}/${e}` : ''}` },
-  { name: 'ZXC Stream', url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VidZen', url: (t, i, s, e) => `https://vidzen.fun/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'VideoEasy', url: (t, i, s, e) => `https://player.videasy.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'ZXC Stream', url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
 ];
 
 function resolveServers(type, id, season, episode) {
