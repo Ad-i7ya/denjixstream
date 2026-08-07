@@ -319,7 +319,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .card:hover img { transform: scale(1.08); }
 .card .glass {
   position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 14px;
+  padding: 14px 14px 14px 66px; /* leave room for the bottom-left play button */
   background: linear-gradient(0deg, rgba(8,8,12,.92) 0%, rgba(8,8,12,.42) 45%, transparent 80%);
   opacity: 0; transition: opacity .3s var(--ease-smooth);
 }
@@ -328,15 +328,17 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .card .glass .sub { font-size: 12px; color: #c0c0cc; margin-top: 3px; display: flex; align-items: center; gap: 6px; }
 .card .glass .sub .r { color: #ffd60a; font-weight: 700; font-size: 11.5px; }
 .card .play-circle {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.7);
-  width: 46px; height: 46px; border-radius: 50%;
-  background: linear-gradient(180deg,#2f9bff,#0a84ff);
-  box-shadow: 0 8px 26px rgba(10,132,255,.55), inset 0 1px 0 rgba(255,255,255,.4);
-  display: flex; align-items: center; justify-content: center; color: #fff;
+  position: absolute; bottom: 14px; left: 14px; transform: scale(.75);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,.92);
+  -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 1px rgba(255,255,255,.9);
+  display: flex; align-items: center; justify-content: center; color: #0a0a0e;
   opacity: 0; transition: all .3s var(--ease-spring); z-index: 4;
 }
-.card .play-circle svg { width: 20px; height: 20px; margin-left: 2px; }
-.card:hover .play-circle { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+.card .play-circle svg { width: 19px; height: 19px; margin-left: 2px; }
+.card:hover .play-circle { opacity: 1; transform: scale(1); }
 .card .card-rating {
   position: absolute; top: 9px; left: 9px; z-index: 4;
   background: rgba(10,10,16,.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
