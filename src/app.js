@@ -211,12 +211,14 @@ function setActiveNav() {
 }
 
 /* ---------------- COMPONENTS ---------------- */
+/* Shared img attrs: shimmer while loading, graceful fade-in/fallback on load/error. */
+const IMG_FADE = 'loading="lazy" decoding="async" onload="this.classList.add(\'loaded\')" onerror="this.classList.add(\'img-err\'); this.previousElementSibling.classList.remove(\'shimmer\')"';
 /* Card artwork: subtle shimmer while the image loads; a small elegant play mark
    on a soft gradient when there is no image or it fails — no more big odd logos. */
 function cardArt(m, title) {
   const src = m.backdrop_path ? IMG_BACKDROP(m.backdrop_path) : '';
-  if (!src) return `<div class="card-ph done"><i class="ph-play">${icon('play')}</i></div>`;
-  return `<div class="card-ph"></div><img loading="lazy" src="${src}" alt="${esc(title)}" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err'); this.previousElementSibling.classList.add('done')">`;
+  if (!src) return `<div class="card-ph"><i class="ph-play">${icon('play')}</i></div>`;
+  return `<div class="card-ph shimmer"><i class="ph-play">${icon('play')}</i></div><img ${IMG_FADE} src="${src}" alt="${esc(title)}">`;
 }
 function backdropCard(m, { grid = false } = {}) {
   const title = m.title || m.name || '';
@@ -581,7 +583,7 @@ function episodeCard(ep, tvId, season) {
   const watched = p && p.season === season && p.episode === ep.episode_number && p.duration && p.time / p.duration > 0.85;
   return `<div class="ep-card" onclick="location.hash='#/watch/tv/${tvId}/${season}/${ep.episode_number}'">
     <div class="thumb">
-      ${ep.still_path ? `<div class="card-ph"></div><img loading="lazy" src="${IMG_BACKDROP(ep.still_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err'); this.previousElementSibling.classList.add('done')">` : `<div class="card-ph done"><i class="ph-play">${icon('play')}</i></div>`}
+      ${ep.still_path ? `<div class="card-ph shimmer"><i class="ph-play">${icon('play')}</i></div><img ${IMG_FADE} src="${IMG_BACKDROP(ep.still_path)}" alt="">` : `<div class="card-ph"><i class="ph-play">${icon('play')}</i></div>`}
       <div class="num">E${ep.episode_number}</div>
       ${watched ? '<div class="watched">✓ Watched</div>' : ''}
     </div>
@@ -732,7 +734,7 @@ function buildSearchPopup() {
     list.forEach((it, i) => {
       const el = document.createElement('div');
       el.className = 'pop-item' + (i === focused ? ' focused' : '');
-      el.innerHTML = `<div class="thumb shimmer-thumb">${it.poster_path ? `<img src="${IMG_POSTER(it.poster_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err')">` : `<i class="ph-play ph-sm">${icon('play')}</i>`}</div>
+      el.innerHTML = `<div class="thumb shimmer-thumb">${it.poster_path ? `<img src="${IMG_POSTER(it.poster_path)}" alt="" decoding="async" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err'); this.parentElement.classList.remove('shimmer-thumb')">` : `<i class="ph-play ph-sm">${icon('play')}</i>`}</div>
         <div class="info"><div class="t">${esc(it.title || it.name || '')}</div><div class="d">${it.release_date ? year(it.release_date) : it.first_air_date ? year(it.first_air_date) : ''}${it.vote_average ? ' · ★ ' + Number(it.vote_average).toFixed(1) : ''}</div></div>
         <span class="type-chip ${it.media_type === 'tv' ? 'tv' : ''}">${it.media_type === 'tv' ? 'TV' : 'MOVIE'}</span>`;
       el.addEventListener('click', () => { close(); navigate(`#/${it.media_type}/${it.id}`); });

@@ -341,14 +341,15 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
     linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01)),
     linear-gradient(135deg, #17171f, #0c0c12);
 }
-.card-ph::after {
+.card-ph.shimmer::after {
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(100deg, transparent 32%, rgba(255,255,255,.08) 50%, transparent 68%);
   background-size: 220% 100%;
   animation: phSweep 1.9s ease-in-out infinite;
 }
 @keyframes phSweep { from { background-position: 180% 0; } to { background-position: -80% 0; } }
-.card-ph.done::after { display: none; }
+.card-ph .ph-play { opacity: 0; transition: opacity .4s var(--ease-smooth); }
+.card-ph:not(.shimmer) .ph-play { opacity: 1; }
 .ph-play {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
   border-radius: 50%; pointer-events: none;
