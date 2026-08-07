@@ -1477,7 +1477,7 @@ function applySiteConfig() {
     /* a banner that was mid-dismiss must pop back in with the new message */
     if (banner.classList.contains('dismissing')) banner.classList.remove('dismissing');
     const kind = ['info', 'success', 'warning'].includes(ann.kind) ? ann.kind : 'info';
-    const key = ann.text + '|' + kind + '|' + (ann.link || '');
+    const key = ann.text + '|' + kind + '|' + (ann.link || '') + '|' + (ann.dur || 0) + (ann.durUnit || '');
     if (banner.dataset.t !== key) {
       banner.dataset.t = key;
       banner.className = 'announce-banner kind-' + kind;
@@ -1494,15 +1494,16 @@ function applySiteConfig() {
       banner.style.animation = 'none';
       void banner.offsetHeight;
       banner.style.animation = '';
-    }
-    /* auto-hide after the admin-set duration (0 = stays until dismissed) */
-    if (banner._t) { clearTimeout(banner._t); banner._t = null; }
-    const mult = ann.durUnit === 'm' ? 60000 : ann.durUnit === 'd' ? 86400000 : 3600000;
-    const durMs = (Number(ann.dur) || 0) * mult;
-    if (durMs > 0) {
-      banner._t = setTimeout(() => {
-        if (banner && banner.isConnected) { banner.classList.add('dismissing'); setTimeout(() => banner.remove(), 340); }
-      }, durMs);
+      /* arm the auto-hide countdown once per banner content — the 15s config
+         heartbeat must NOT re-arm it, or the banner would never auto-hide */
+      if (banner._t) { clearTimeout(banner._t); banner._t = null; }
+      const mult = ann.durUnit === 'm' ? 60000 : ann.durUnit === 'd' ? 86400000 : 3600000;
+      const durMs = (Number(ann.dur) || 0) * mult;
+      if (durMs > 0) {
+        banner._t = setTimeout(() => {
+          if (banner && banner.isConnected) { banner.classList.add('dismissing'); setTimeout(() => banner.remove(), 340); }
+        }, durMs);
+      }
     }
   } else if (banner && !banner.classList.contains('dismissing')) {
     if (banner._t) { clearTimeout(banner._t); banner._t = null; }
