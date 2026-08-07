@@ -71,26 +71,25 @@ const ICONS = {
 };
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cls}">${ICONS[name] || ''}</svg>`;
 
-/* ---------------- LOGO MARK (liquid-glass play tile) ---------------- */
+/* ---------------- LOGO MARK (Apple-minimal play tile) ---------------- */
 const LOGO_MARK = `<svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
-    <linearGradient id="dxmG" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4db0ff"/><stop offset=".5" stop-color="#0a84ff"/><stop offset="1" stop-color="#5e5ce6"/>
+    <linearGradient id="dxmTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1e27"/><stop offset="1" stop-color="#0a0a10"/>
     </linearGradient>
-    <linearGradient id="dxmHi" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    <linearGradient id="dxmPlay" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e7ebf6"/>
     </linearGradient>
-    <radialGradient id="dxmGlow" cx=".5" cy=".38" r=".75">
-      <stop offset="0" stop-color="#8cc8ff" stop-opacity=".5"/><stop offset="1" stop-color="#0a84ff" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="dxmAcc" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4db0ff"/><stop offset="1" stop-color="#5e5ce6"/>
+    </linearGradient>
   </defs>
-  <rect x="3" y="3" width="58" height="58" rx="17" fill="#0e0e14"/>
-  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#dxmGlow)"/>
-  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#dxmG)"/>
-  <rect x="3" y="3" width="58" height="58" rx="17" stroke="rgba(255,255,255,.4)" stroke-width="1.6"/>
-  <path d="M7.5 20.5C7.5 13.6 13.1 8 20 8h24c6.9 0 12.5 5.6 12.5 12.5v5.5H7.5v-5.5Z" fill="url(#dxmHi)"/>
-  <circle cx="32" cy="35" r="14.5" fill="rgba(255,255,255,.15)"/>
-  <path d="M27.2 25.8v18.4l15.6-9.2-15.6-9.2Z" fill="#fff"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="16" fill="url(#dxmTile)"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="16" stroke="rgba(255,255,255,.22)" stroke-width="1.3"/>
+  <path d="M9 16.5C9 11.9 12.9 8 17.5 8h29c4.6 0 8.5 3.9 8.5 8.5v6H9v-6Z" fill="rgba(255,255,255,.06)"/>
+  <path d="M24.6 21.9v20.2a1.7 1.7 0 0 0 2.56 1.47l16.4-10.1a1.7 1.7 0 0 0 0-2.94l-16.4-10.1a1.7 1.7 0 0 0-2.56 1.47Z" fill="url(#dxmPlay)"/>
+  <rect x="46.5" y="27.6" width="6.6" height="2.9" rx="1.45" fill="url(#dxmAcc)"/>
+  <rect x="45" y="33.4" width="8.1" height="2.9" rx="1.45" fill="url(#dxmAcc)" opacity=".5"/>
 </svg>`;
 
 /* ---------------- TOAST ---------------- */
@@ -130,11 +129,27 @@ function matchRoute(hash) {
   return { fn: () => { main.innerHTML = `<div class="empty-state"><h3>Page not found</h3><p class="muted">The page you requested doesn't exist.</p></div>`; }, params: {} };
 }
 function navigate(hash) { location.hash = hash; }
-function router() {
+let routeFirst = true;
+/* reduced-motion users get instant navigation — the CSS already zeroes the
+   animations, but the JS veil timer needs its own gate too */
+const ROUTE_REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+async function router() {
+  const tok = ++routeTok;
   stopHeroTimer();
   /* tear down any leftover episode overlay + its cache on navigation */
   const oldOv = document.getElementById('epOverlay');
   if (oldOv) { oldOv.remove(); epOpen = false; epCloseFn = null; document.body.classList.remove('ep-open'); epCache = {}; }
+  if (routeFirst || ROUTE_REDUCED) {
+    routeFirst = false; /* first paint has nothing to transition from */
+  } else {
+    /* Apple liquid-glass swap: the veil blurs the outgoing page upward… */
+    routeVeil.style.transition = 'opacity .16s ease, -webkit-backdrop-filter .16s ease, backdrop-filter .16s ease';
+    routeVeil.style.opacity = '.92';
+    routeVeil.style.webkitBackdropFilter = 'blur(16px) saturate(1.15)';
+    routeVeil.style.backdropFilter = 'blur(16px) saturate(1.15)';
+    await new Promise(r => setTimeout(r, 165));
+    if (tok !== routeTok) return; /* a newer navigation superseded this one */
+  }
   const { fn, params } = matchRoute(location.hash || '#/');
   window.scrollTo(0, 0);
   fn(params);
@@ -142,9 +157,15 @@ function router() {
      the always-visible floating logo never overlaps their header */
   const rp = (location.hash.replace(/^#/, '') || '/').split('?')[0];
   main.classList.toggle('logo-gap', /^\/(search|browse|categories|anime|watchlist|history|legal|watch)\b/.test(rp));
+  /* …then dissolve the veil so the new page sharpens into focus. The blur
+     drops in 180ms while the tint lingers — smooth on low-end phone GPUs */
+  routeVeil.style.transition = 'opacity .5s cubic-bezier(.32,.72,.32,1), -webkit-backdrop-filter .18s ease, backdrop-filter .18s ease';
+  routeVeil.style.opacity = '0';
+  routeVeil.style.webkitBackdropFilter = 'blur(0px) saturate(1.15)';
+  routeVeil.style.backdropFilter = 'blur(0px) saturate(1.15)';
   // route switches reset scroll programmatically (no scroll event fires) — sync the logo state
   requestAnimationFrame(updateFloatLogo);
-  // re-trigger the per-view fade-up AFTER render for Apple-smooth transitions
+  // re-trigger the per-view rise AFTER render for Apple-smooth continuity
   main.classList.remove('view-enter'); void main.offsetWidth; main.classList.add('view-enter');
   setActiveNav();
 }
@@ -196,6 +217,12 @@ app.innerHTML = sidebarHTML + `
 <button class="menu-btn" id="menuBtn" aria-label="Open menu"><span></span><span></span><span></span></button>
 <a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>`;
 document.body.prepend(app);
+/* liquid-glass route veil — one fixed element that blurs the outgoing page
+   while the next route swaps in underneath; opacity is driven by the router */
+const routeVeil = document.createElement('div');
+routeVeil.id = 'routeVeil';
+document.body.appendChild(routeVeil);
+let routeTok = 0;
 /* hide the floating logo once the page is scrolled down — it fades back in
    only when the user is back at the very top */
 const floatLogo = $('.float-logo');

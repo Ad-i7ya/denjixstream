@@ -23,8 +23,8 @@
   --shadow-glass: 0 12px 44px rgba(0, 0, 0, 0.55);
   --shadow-lift: 0 22px 60px rgba(0, 0, 0, 0.6);
   --highlight-inset: inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif;
-  --font-logo: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-logo: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -120,8 +120,8 @@ body.resizing * { cursor: col-resize !important; }
 .logo a:hover .logo-mark { transform: rotate(-6deg) scale(1.05); }
 .logo-word {
   font-family: var(--font-logo);
-  font-size: 23px; font-weight: 800; letter-spacing: -0.045em;
-  background: linear-gradient(180deg, #ffffff 20%, #c9c9d6 90%);
+  font-size: 22px; font-weight: 600; letter-spacing: -0.035em;
+  background: linear-gradient(180deg, #ffffff 32%, #d9dde9 100%);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
 .side-section {
@@ -220,8 +220,16 @@ body.resizing * { cursor: col-resize !important; }
   position: relative; z-index: 1;
   overflow-x: hidden; overflow-x: clip; /* nothing inside may widen the page — rows scroll internally */
 }
-.main-scroll.view-enter { animation: fadeUp .5s var(--ease-smooth) both; }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+/* liquid-glass route veil — blurs the outgoing page during navigation swaps
+   (opacity is driven by the router; pointer-events off so it never traps a click) */
+#routeVeil {
+  position: fixed; inset: 0; z-index: 400; pointer-events: none;
+  background: rgba(10, 10, 16, .38);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
+  opacity: 0; will-change: opacity;
+}
+.main-scroll.view-enter { animation: fadeUp .55s var(--ease-spring) both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px) scale(.995); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   #genreRows section { animation-delay: 0ms !important; }
