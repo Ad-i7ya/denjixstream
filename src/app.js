@@ -1474,6 +1474,8 @@ function applySiteConfig() {
   let banner = $('#announceBanner');
   if (ann) {
     if (!banner) { banner = document.createElement('div'); banner.id = 'announceBanner'; banner.className = 'announce-banner'; document.body.appendChild(banner); }
+    /* a banner that was mid-dismiss must pop back in with the new message */
+    if (banner.classList.contains('dismissing')) banner.classList.remove('dismissing');
     const kind = ['info', 'success', 'warning'].includes(ann.kind) ? ann.kind : 'info';
     const key = ann.text + '|' + kind + '|' + (ann.link || '');
     if (banner.dataset.t !== key) {

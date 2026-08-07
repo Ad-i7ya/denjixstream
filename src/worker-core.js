@@ -217,6 +217,7 @@ async function beaconHandler(request, env) {
           d1.prepare('CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, ip TEXT, device TEXT, os TEXT, browser TEXT, bver TEXT, model TEXT, country TEXT, city TEXT, region TEXT, asn TEXT, page TEXT, ev TEXT, title TEXT, q TEXT, ref TEXT, screen TEXT, lang TEXT, tz TEXT, conn TEXT, mem TEXT, cores TEXT)'),
           d1.prepare('CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)'),
           d1.prepare('CREATE INDEX IF NOT EXISTS idx_events_ip ON events(ip)'),
+          d1.prepare('CREATE INDEX IF NOT EXISTS idx_events_ip_ts ON events(ip, ts)'),
         ]);
         await kvPut(kv, 'd1schema', 1);
       }
