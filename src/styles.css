@@ -1015,7 +1015,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 /* real fullscreen must fill the screen (UA :fullscreen max-width:none is overridden by the cap above) */
 .player-wrap:fullscreen { max-width: none !important; border-radius: 0; }
 .player-wrap video, .player-wrap iframe { width: 100%; aspect-ratio: 16/9; display: block; background: #000; border: none; }
-.player-shell { position: relative; overflow: hidden; }
 /* liquid-glass player chrome */
 .pl-top {
   position: absolute; top: 0; left: 0; right: 0; z-index: 8;
@@ -1025,7 +1024,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
   opacity: 0; transition: opacity .35s var(--ease-smooth);
   pointer-events: none;
 }
-.player-shell:hover .pl-top, .pl-top.show { opacity: 1; pointer-events: auto; }
+.player-wrap:hover .pl-top, .pl-top.show { opacity: 1; pointer-events: auto; }
 @media (hover: none) { .pl-top { opacity: 1; pointer-events: auto; } }
 .pl-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .pl-mark-svg { width: 22px; height: 22px; flex-shrink: 0; filter: drop-shadow(0 3px 10px rgba(255,255,255,.4)); }

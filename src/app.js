@@ -339,9 +339,16 @@ function initSmoothScroll() {
   }, { passive: false });
 }
 const main = $('#main');
-/* one shared dev chip — always carries the Telegram profile photo. The avatar
-   file is picked from the handle so reordered panel devs never swap faces. */
-const devChip = (d) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava"><img src="/avatars/${/kzr0x/i.test(String(d.handle || '')) ? 'kyren' : 'denji'}.jpg?v=3" alt="" loading="lazy" decoding="async" onerror="this.remove()">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
+/* one shared dev chip — carries the Telegram profile photo only for the two
+   known handles (kyren/denji); any other developer gets a clean initial-letter
+   avatar instead of a wrong face. The avatar file is picked from the handle so
+   reordered panel devs never swap photos. */
+const DEV_AVATARS = { kzr0x: 'kyren', te4m1ord: 'denji' };
+const devChip = (d) => {
+  if (!d) return '';
+  const av = DEV_AVATARS[String(d.handle || '').toLowerCase()];
+  return `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava">${av ? `<img src="/avatars/${av}.jpg?v=3" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>`;
+};
 const footerNote = () => {
   const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
   return `<footer class="site-footer">
@@ -353,7 +360,7 @@ const footerNote = () => {
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
-    ${devs ? devChip(devs[0]) + devChip(devs[1]) : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' })}
+    ${devs ? devs.map(devChip).join('') : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' })}
   </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
@@ -1285,6 +1292,19 @@ async function viewWatch(params) {
   const type = isTv ? 'tv' : 'movie';
   main.innerHTML = `<div id="playerShell" class="player-wrap" tabindex="-1" style="margin-bottom:22px"><div class="spinner" style="margin:180px auto"></div></div>
     <div id="watchMeta"><div class="skeleton" style="height:40px;width:60%"></div></div><div id="watchServers"></div><div id="watchEps"></div>${footerNote()}`;
+  /* player chrome: flash it in on any pointer activity inside the player and
+     keep it while the pointer stays (CSS :hover on .player-wrap also shows it;
+     the .show class makes it appear instantly on click/tap). Touch keeps it
+     pinned via the (hover:none) media query. Bound ONCE at creation — select()
+     re-renders the chrome on every server switch, so per-select bindings would
+     stack duplicate listeners on the persistent shell. */
+  const pShell = $('#playerShell');
+  if (pShell) {
+    const topOf = () => $('.pl-top', pShell);
+    pShell.addEventListener('pointermove', () => topOf()?.classList.add('show'));
+    pShell.addEventListener('pointerdown', () => topOf()?.classList.add('show'));
+    pShell.addEventListener('pointerleave', () => topOf()?.classList.remove('show'));
+  }
   const [d, servers] = await Promise.all([
     api(`/${type}/${id}?language=en-US`).catch(() => null),
     fetch(`/api/stream?type=${type}&id=${id}${isTv ? `&season=${season}&episode=${episode}` : ''}`).then(r => r.json()).catch(() => ({ servers: [] })),
@@ -1391,7 +1411,7 @@ async function viewWatch(params) {
     frame.addEventListener('load', () => { loaded = true; hideLoading(); });
     loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000);
     $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; armShield(); loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
-    $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); const el = shell; if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); });
+    $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); plFullscreenToggle(); });
     $('#plEps')?.addEventListener('click', (e) => { e.stopPropagation(); epOpen && epCloseFn ? epCloseFn() : openEpOverlay(); });
     /* set src only after the load listener is attached (no race → loading ring
        always resolves to either the video or the error card) */
@@ -1416,6 +1436,9 @@ async function viewWatch(params) {
    (fullscreen, episodes, servers, home, help) is handled directly. Only
    active while a player is on screen and no input/overlay is focused. */
 let plReleaseShield = null;
+/* last window-blur reclaim timestamp — rate-limits the focus reclaim so an
+   embed that keeps re-stealing focus can't spin us */
+let lastFsReclaim = 0;
 /* local playback-state heuristics — the embed is cross-origin, so play/pause/
    volume/mute toggles can't be read back; track them locally so Space, M and
    the arrow keys behave like real toggles instead of absolute jumps */
@@ -1518,6 +1541,26 @@ document.addEventListener('keydown', (e) => {
     case 's': e.preventDefault(); plNextServer(); return;
     case 'h': e.preventDefault(); navigate('#/'); return;
   }
+});
+/* After the shield releases, the first tap on the video moves keyboard focus
+   into the cross-origin embed — every later keystroke (F/Space/arrows/H…) would
+   land inside the embed and this page's shortcut handler would go deaf. The
+   window 'blur' event fires exactly when the iframe takes focus, so reclaim
+   focus on the player shell on the next tick. Safe: while the window itself is
+   inactive (address bar, another tab/app) element.focus() is a silent no-op,
+   and fields the user is actually typing in are never touched. */
+window.addEventListener('blur', () => {
+  if (!plFrameEl()) return;
+  const now = Date.now();
+  if (now - lastFsReclaim < 250) return; /* rate-limit: embeds that re-steal focus can't spin us */
+  lastFsReclaim = now;
+  setTimeout(() => {
+    if (!plFrameEl()) return;
+    if (document.fullscreenElement) return; /* don't fight the fullscreen UI */
+    const t = document.activeElement;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    plFocus();
+  }, 0);
 });
 
 /* ---- Overlayed scrollable episode list (like streamex.sh): a glass drawer that
@@ -1806,10 +1849,11 @@ function applySiteConfig() {
   /* tagline under the sidebar logo (admin-driven) */
   const tg = $('#logoTag');
   if (tg) { const v = (cfg.tagline || '').trim(); tg.textContent = v; tg.style.display = v ? '' : 'none'; }
-  /* footer developer chips from the admin panel (applied after config loads) */
+  /* footer developer chips from the admin panel — ALL devs (up to 6), applied
+     after config loads and on every 15s heartbeat so new devs appear live */
   if (cfg.devs && cfg.devs.length) {
     $$('.foot-devs').forEach(box => {
-      box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${devChip(cfg.devs[0])}${devChip(cfg.devs[1])}`;
+      box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${cfg.devs.map(devChip).join('')}`;
     });
   }
   /* section toggles from the panel: anime / watchlist / history / hero / contact */
