@@ -362,7 +362,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 /* ---------- Hero slideshow ---------- */
 .hero {
   position: relative; border-radius: 28px; overflow: hidden;
-  aspect-ratio: 16/5.6; margin-bottom: 30px;
+  aspect-ratio: 16/4.8; margin-bottom: 30px;
   border: 1px solid rgba(255,255,255,.14);
   box-shadow: var(--shadow-glass);
 }
@@ -487,7 +487,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 }
 .card:hover { transform: translateY(-5px) scale(1.02); border-color: rgba(255,255,255,.28); box-shadow: var(--shadow-lift); z-index: 3; }
 .card.in-wl { border-color: rgba(10,132,255,.45); box-shadow: inset 0 0 0 1px rgba(10,132,255,.35); }
-.card.backdrop { width: 240px; aspect-ratio: 16/9; }
+.card.backdrop { width: 216px; aspect-ratio: 16/9; }
 .card.grid-card { width: 100%; }
 .card.grid-card { aspect-ratio: 16/9; width: 100%; }
 .card img {
@@ -575,7 +575,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .card .card-rating svg { width: 11px; height: 11px; }
 .card .card-progress { position: absolute; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg,#0a84ff,#5e5ce6); border-radius: 0 3px 0 0; z-index: 3; }
 .card .watch-flag { position: absolute; top: 9px; right: 9px; z-index: 3; background: rgba(10,10,16,.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: #8ee0ff; border: 1px solid rgba(10,132,255,.35); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 14px; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 
 /* ---------- Detail page ---------- */
@@ -782,10 +782,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 /* ---------- Player ---------- */
 .player-wrap {
-  position: relative; border-radius: 24px; overflow: hidden; margin-bottom: 24px;
+  position: relative; border-radius: 24px; overflow: hidden; margin: 0 auto 24px;
+  max-width: 1080px; /* Netflix-style — never full-bleed huge */
   background: #000; border: 1px solid rgba(255,255,255,.14);
   box-shadow: var(--shadow-lift);
 }
+/* real fullscreen must fill the screen (UA :fullscreen max-width:none is overridden by the cap above) */
+.player-wrap:fullscreen { max-width: none !important; border-radius: 0; }
 .player-wrap video, .player-wrap iframe { width: 100%; aspect-ratio: 16/9; display: block; background: #000; border: none; }
 .player-shell { position: relative; overflow: hidden; }
 /* liquid-glass player chrome */
@@ -1124,7 +1127,7 @@ body.ep-open { overflow: hidden; }
 /* ---------- Responsive / orientation ---------- */
 @media (max-width: 1100px) {
   .row-nav { display: none; }
-  .card.backdrop { width: 230px; }
+  .card.backdrop { width: 208px; }
 }
 @media (max-width: 1024px) {
   .sidebar { transform: translateX(-105%); box-shadow: var(--shadow-glass); width: min(var(--sbw, 264px), 68vw); }
@@ -1138,7 +1141,7 @@ body.ep-open { overflow: hidden; }
   .menu-btn { display: flex; }
   .float-logo { display: flex; left: 58px; }
   .main-scroll { padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
-  .hero { aspect-ratio: 16/7.2; border-radius: 22px; }
+  .hero { aspect-ratio: 16/6.4; border-radius: 22px; }
   .hero-slide .content { padding: 20px; gap: 7px; }
   .hero-slide h1 { font-size: clamp(18px, 4.2vw, 26px); }
   .hero-slide .overview { -webkit-line-clamp: 1; }
@@ -1148,15 +1151,15 @@ body.ep-open { overflow: hidden; }
   .detail-hero .backdrop { aspect-ratio: 16/8.5; }
   .detail-hero .content { padding: 20px; gap: 16px; }
   .poster { width: 104px; }
-  .card.backdrop { width: 200px; }
-  .ep-card { width: 220px; }
+  .card.backdrop { width: 188px; }
+  .ep-card { width: 210px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .pc-row { padding: 8px 10px; }
   .pc-top { padding: 10px 12px; }
   .pl-top { padding: 10px 12px; }
 }
 @media (max-width: 640px) {
-  .hero { aspect-ratio: 16/7.6; }
+  .hero { aspect-ratio: 16/6.8; }
   .hero-slide .content { padding: 14px; gap: 5px; }
   .hero-slide h1 { font-size: 17px; }
   .hero-slide .overview, .hero-slide .meta { display: none; }
@@ -1166,7 +1169,7 @@ body.ep-open { overflow: hidden; }
   .hero-dots { bottom: 7px; padding: 5px 10px; }
   .hero-dot { width: 6px; height: 6px; }
   .hero-dot.active { width: 18px; }
-  .card.backdrop { width: 156px; }
+  .card.backdrop { width: 148px; }
   .card .glass { padding: 10px 10px 10px 48px; }
   .card .glass .title { font-size: 12px; -webkit-line-clamp: 1; }
   .card .play-circle { width: 32px; height: 32px; bottom: 8px; left: 8px; }
@@ -1175,7 +1178,7 @@ body.ep-open { overflow: hidden; }
   .poster { display: none; }
   .detail-info h1 { font-size: 24px; }
   .detail-info .overview { -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-  .ep-card { width: 196px; }
+  .ep-card { width: 188px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 11px; }
   .row { gap: 12px; }
   .cat-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 9px; }

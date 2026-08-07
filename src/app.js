@@ -12,6 +12,8 @@ const IMG = 'https://image.tmdb.org/t/p';
 const IMG_BACKDROP = (p) => p ? `${IMG}/w1280${p}` : '';
 const IMG_POSTER   = (p) => p ? `${IMG}/w500${p}`  : '';
 const IMG_FACE     = (p) => p ? `${IMG}/w185${p}`  : '';
+const IMG_HERO     = (p) => p ? `${IMG}/original${p}` : ''; /* full-res — crisp on big screens, no visible pixels */
+const IMG_CARD     = (p) => p ? `${IMG}/w780${p}`  : ''; /* plenty for card sizes, ~1/3 the bytes of w1280 */
 const fmtTime = (s) => { if (!isFinite(s)) return '0:00'; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 const year = (d) => (d || '').slice(0, 4);
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
@@ -306,7 +308,7 @@ const IMG_FADE = 'loading="lazy" decoding="async" onload="this.classList.add(\'l
 /* Card artwork: subtle shimmer while the image loads; a small elegant play mark
    on a soft gradient when there is no image or it fails — no more big odd logos. */
 function cardArt(m, title) {
-  const src = m.backdrop_path ? IMG_BACKDROP(m.backdrop_path) : '';
+  const src = m.backdrop_path ? IMG_CARD(m.backdrop_path) : '';
   if (!src) return `<div class="card-ph"><i class="ph-play">${icon('play')}</i></div>`;
   return `<div class="card-ph shimmer"><i class="ph-play">${icon('play')}</i></div><img ${IMG_FADE} src="${src}" alt="${esc(title)}">`;
 }
@@ -367,7 +369,7 @@ function heroSlide(m) {
   const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
   const med = m.media_type || (m.first_air_date ? 'tv' : 'movie');
   return `<div class="hero-slide">
-    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" alt="" loading="lazy" decoding="async">` : ''}
+    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" data-hi="${IMG_HERO(m.backdrop_path)}" alt="" loading="lazy" decoding="async">` : ''}
     <div class="blob b1"></div><div class="blob b2"></div>
     <div class="shade"></div>
     <div class="content">
@@ -407,7 +409,15 @@ function bindHeroCarousel() {
   let idx = 0, timer = null;
   const show = (i) => {
     idx = (i + slides.length) % slides.length;
-    slides.forEach((s, k) => s.classList.toggle('active', k === idx));
+    slides.forEach((s, k) => {
+      s.classList.toggle('active', k === idx);
+      /* upgrade only the visible slide to full-res original — keeps the other
+         slides light (w1280) so the page doesn't download 6 huge backdrops */
+      if (k === idx) {
+        const img = $('img.backdrop', s);
+        if (img && img.dataset.hi && img.src !== img.dataset.hi) img.src = img.dataset.hi;
+      }
+    });
     dots.forEach((d, k) => d.classList.toggle('active', k === idx));
   };
   const next = () => show(idx + 1);
@@ -674,7 +684,7 @@ async function viewCategories(params) {
   /* fetch one real backdrop per genre so tiles feel relatable (capped, parallel) */
   const arts = await Promise.all(genres.slice(0, 18).map(async (x) => {
     const r = await api(`/discover/${type}?language=en-US&with_genres=${x.id}&sort_by=popularity.desc`).catch(() => null);
-    return (r && r.results && r.results[0] && r.results[0].backdrop_path) ? IMG_BACKDROP(r.results[0].backdrop_path) : '';
+    return (r && r.results && r.results[0] && r.results[0].backdrop_path) ? IMG_CARD(r.results[0].backdrop_path) : '';
   }));
   const decades = [['2020', '2020s'], ['2010', '2010s'], ['2000', '2000s'], ['1990', '1990s'], ['1980', '1980s'], ['1970', '1970s & older']];
   $('#catBody').innerHTML =
@@ -771,7 +781,7 @@ async function viewDetail(params) {
   const wl = Store.watchlist.has(Number(id), type);
   main.innerHTML = `
     <div class="detail-hero">
-      ${d.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(d.backdrop_path)}" alt="">` : ''}
+      ${d.backdrop_path ? `<img class="backdrop" src="${IMG_HERO(d.backdrop_path)}" alt="">` : ''}
       <div class="shade"></div>
       <div class="content">
         <div class="poster">${d.poster_path ? `<img src="${IMG_POSTER(d.poster_path)}" alt="">` : ''}</div>
@@ -830,7 +840,7 @@ function episodeCard(ep, tvId, season) {
   const watched = p && p.season === season && p.episode === ep.episode_number && p.duration && p.time / p.duration > 0.85;
   return `<div class="ep-card" onclick="location.hash='#/watch/tv/${tvId}/${season}/${ep.episode_number}'">
     <div class="thumb">
-      ${ep.still_path ? `<div class="card-ph shimmer"><i class="ph-play">${icon('play')}</i></div><img ${IMG_FADE} src="${IMG_BACKDROP(ep.still_path)}" alt="">` : `<div class="card-ph"><i class="ph-play">${icon('play')}</i></div>`}
+      ${ep.still_path ? `<div class="card-ph shimmer"><i class="ph-play">${icon('play')}</i></div><img ${IMG_FADE} src="${IMG_CARD(ep.still_path)}" alt="">` : `<div class="card-ph"><i class="ph-play">${icon('play')}</i></div>`}
       <div class="num">E${ep.episode_number}</div>
       ${watched ? '<div class="watched">✓ Watched</div>' : ''}
     </div>
@@ -870,7 +880,7 @@ async function viewWatch(params) {
     return;
   }
   srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${i === 0 ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">If a server doesn't play, just pick another one below — all 15 are here.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:10px">If a server doesn't play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
@@ -973,7 +983,7 @@ function epOverlayItem(ep, tvId, season, curSeason, curEpisode) {
   const href = `#/watch/tv/${tvId}/${season}/${ep.episode_number}`;
   return `<a class="ep-item ${current ? 'current' : ''} ${watched ? 'watched' : ''}" href="${href}">
     <div class="ep-thumb">
-      ${ep.still_path ? `<div class="card-ph shimmer"></div><img loading="lazy" decoding="async" src="${IMG_BACKDROP(ep.still_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.previousElementSibling.classList.remove('shimmer')">` : `<div class="card-ph"><i class="ph-play ph-sm">${icon('play')}</i></div>`}
+      ${ep.still_path ? `<div class="card-ph shimmer"></div><img loading="lazy" decoding="async" src="${IMG_CARD(ep.still_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.previousElementSibling.classList.remove('shimmer')">` : `<div class="card-ph"><i class="ph-play ph-sm">${icon('play')}</i></div>`}
       <span class="ep-num">${String(ep.episode_number).padStart(2, '0')}</span>
       ${watched ? '<span class="ep-done">✓</span>' : ''}
     </div>
@@ -1028,7 +1038,7 @@ function viewHistory() {
     (items.length ? `<div class="grid">${items.map(h => {
       const m = { ...h, media_type: h.type, title: h.title, name: h.title };
       const href = h.type === 'tv' ? `#/watch/tv/${h.id}/${h.season}/${h.episode}` : `#/watch/movie/${h.id}`;
-      return `<div class="card grid-card" onclick="location.hash='${href.slice(1)}'">${h.backdrop ? `<img loading="lazy" src="${IMG_BACKDROP(h.backdrop)}" alt="">` : ''}<div class="glass"><div class="title">${esc(h.title)}</div><div class="sub">${h.type === 'tv' ? `S${h.season}·E${h.episode}` : 'Movie'} · ${new Date(h.ts).toLocaleDateString()}</div></div>${progressFlag(m)}</div>`;
+      return `<div class="card grid-card" onclick="location.hash='${href.slice(1)}'">${h.backdrop ? `<img loading="lazy" src="${IMG_CARD(h.backdrop)}" alt="">` : ''}<div class="glass"><div class="title">${esc(h.title)}</div><div class="sub">${h.type === 'tv' ? `S${h.season}·E${h.episode}` : 'Movie'} · ${new Date(h.ts).toLocaleDateString()}</div></div>${progressFlag(m)}</div>`;
     }).join('')}</div>` : `<div class="empty-state">${icon('clock')}<h3>No watch history yet</h3><p class="muted">Titles you watch will appear here.</p></div>`) +
     footerNote();
   $('#clearHist')?.addEventListener('click', () => { Store.history.clear(); viewHistory(); toast('History cleared'); });
