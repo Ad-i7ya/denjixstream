@@ -258,7 +258,7 @@ window.addEventListener('scroll', updateFloatLogo, { passive: true });
 const main = $('#main');
 const footerNote = () => {
   const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
-  const chip = (d, i) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava"><img src="/avatars/${i === 0 ? 'kyren' : 'denji'}.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
+  const chip = (d, i) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava"><img src="/avatars/${i === 0 ? 'kyren' : 'denji'}.jpg?v=2" alt="" loading="lazy" decoding="async" onerror="this.remove()">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
   return `<footer class="site-footer">
   <a class="foot-brand" href="#/">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>
   <nav class="foot-links" aria-label="Footer">
@@ -267,8 +267,8 @@ const footerNote = () => {
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
-    ${devs ? chip(devs[0], 0) + chip(devs[1], 1) : `<a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava"><img src="/avatars/kyren.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">K</span><span>Kyren</span>${icon('telegram')}</a>
-    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava"><img src="/avatars/denji.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">D</span><span>Denji</span>${icon('telegram')}</a>`}
+    ${devs ? chip(devs[0], 0) + chip(devs[1], 1) : `<a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava"><img src="/avatars/kyren.jpg?v=2" alt="" loading="lazy" decoding="async" onerror="this.remove()">K</span><span>Kyren</span>${icon('telegram')}</a>
+    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava"><img src="/avatars/denji.jpg?v=2" alt="" loading="lazy" decoding="async" onerror="this.remove()">D</span><span>Denji</span>${icon('telegram')}</a>`}
   </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
@@ -1634,6 +1634,9 @@ function boot() {
   window.addEventListener('hashchange', loadSiteConfig);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadSiteConfig(); });
   try { if (!sessionStorage.getItem('dx_visited')) { sessionStorage.setItem('dx_visited', '1'); beacon('visit'); } } catch (_) {}
+  /* presence heartbeat — a lightweight 'visit' ping every 60s while the tab is
+     open & visible so the admin panel's online counts reflect true presence */
+  setInterval(() => { try { if (!document.hidden) beacon('visit'); } catch (_) {} }, 60000);
   router();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

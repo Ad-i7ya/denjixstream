@@ -103,13 +103,40 @@ function resolveServers(type, id, season, episode) {
   return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, sbx: !!s.sbx, url: s.url(type, id, season, episode) }));
 }
 
+/* Build a concrete embed URL from an admin-managed pattern.
+   Patterns may or may not carry {s}/{e} tokens:
+     https://host/player/{type}/{id}/{s}/{e}?autoplay=1   (TV-ready)
+     https://host/{type}/{id}?autoplay=1                   (movie-only legacy)
+   For movies any {s}/{e} tokens (and their slashes) are stripped; for TV a
+   legacy pattern without tokens gets /{season}/{episode} appended so every
+   title resolves correctly regardless of how the pattern was saved. */
+function buildFromPattern(pattern, type, id, season, episode) {
+  let u = String(pattern || '');
+  const qIdx = u.indexOf('?');
+  const q = qIdx >= 0 ? u.slice(qIdx) : '';
+  let base = qIdx >= 0 ? u.slice(0, qIdx) : u;
+  base = base.replace(/\{type\}/g, type).replace(/\{id\}/g, id);
+  if (season != null && episode != null) {
+    if (base.includes('{s}') || base.includes('{e}')) {
+      base = base.replace(/\{s\}/g, season).replace(/\{e\}/g, episode);
+    } else {
+      base = base.replace(/\/?$/, '') + '/' + season + '/' + episode;
+    }
+  } else {
+    base = base.replace(/\/?\{s\}\/?/g, '').replace(/\/?\{e\}\/?/g, '').replace(/\/+$/, '');
+  }
+  return base + q;
+}
+
 async function streamHandler(request, url, env, ctx) {
   const type = url.searchParams.get('type') === 'tv' ? 'tv' : 'movie';
   const id = url.searchParams.get('id') || '';
   const season = url.searchParams.get('season');
   const episode = url.searchParams.get('episode');
   if (!/^\d+$/.test(id)) return json({ error: 'bad id' }, 400);
-  const cfg = await siteConfig(env);
+  /* always read a FRESH config here (not the 30s isolate cache) so a server
+     list saved from the admin panel is reflected immediately */
+  const cfg = await siteConfig(env, true);
   const cfgRev = cfg.servers ? cfg.serversRev : 'd';
   const cacheKey = `stream:v3:${type}:${id}:${season || ''}:${episode || ''}:${cfgRev}`;
   const c = cacheStore();
@@ -321,9 +348,9 @@ export default {
     }
     /* developer Telegram profile photos (embedded at build time) */
     if (path === '/avatars/kyren.jpg' || path === '/avatars/kyren')
-      return new Response(b64ToBytes(AVATAR_KYREN), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+      return new Response(b64ToBytes(AVATAR_KYREN), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' } });
     if (path === '/avatars/denji.jpg' || path === '/avatars/denji')
-      return new Response(b64ToBytes(AVATAR_DENJI), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+      return new Response(b64ToBytes(AVATAR_DENJI), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' } });
     if (path.startsWith('/api/tmdb/')) return tmdbHandler(request, url, env, ctx);
     if (path === '/api/stream') return streamHandler(request, url, env, ctx);
     if (path === '/api/beacon' && request.method === 'POST') return beaconHandler(request, env);
