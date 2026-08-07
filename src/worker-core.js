@@ -72,14 +72,28 @@ async function tmdbHandler(request, url, env, ctx) {
   return cors(res);
 }
 
-/* ---------------- Stream resolution (embed servers only, like streamex.sh) ---------------- */
+/* ---------------- Stream resolution (the same 15 servers streamex.sh uses) ----------------
+   vidplays.fun is streamex's primary player (its "VidPlay" server) — listed first. */
 const EMBED_SERVERS = [
-  { name: 'VidSrc', url: (t, i, s, e) => `https://vidsrc.to/embed/${t}/${i}${s ? `?season=${s}&episode=${e}` : ''}` },
-  { name: '2Embed', url: (t, i, s, e) => `https://www.2embed.cc/embed/${t}/${i}${s ? `?s=${s}&e=${e}` : ''}` },
+  { name: 'VidPlay', flag: '★', rec: true, url: (t, i, s, e) => `https://vidplays.fun/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'XPass', url: (t, i, s, e) => `https://play.xpass.top/e/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VidGod', url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
+  { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'CinemaOS', url: (t, i, s, e) => `https://cinemaos.tech/player/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'AirFlix', url: (t, i, s, e) => `https://airflix1.com/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'Peachify', url: (t, i, s, e) => `https://peachify.top/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VidZen', url: (t, i, s, e) => `https://vidzen.fun/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VSrc', url: (t, i, s, e) => `https://vsembed.ru/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VideoEasy', url: (t, i, s, e) => `https://player.videasy.net/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'ZXC Stream', url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'ScreenScape', url: (t, i, s, e) => `https://screenscape.me/embed?tmdb=${i}&type=${t}${s ? `&s=${s}&e=${e}` : ''}` },
+  { name: 'ModoCine', url: (t, i, s, e) => `https://play.modocine.com/play.php/embed/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'ViX', url: (t, i, s, e) => `https://vixsrc.to/${t}/${i}${s ? `/${s}/${e}` : ''}?lang=it` },
+  /* FR (frembed.buzz) is a JSON API, not an embed — would show raw JSON in an iframe, so it's excluded */
 ];
 
 function resolveServers(type, id, season, episode) {
-  return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', url: s.url(type, id, season, episode) }));
+  return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, url: s.url(type, id, season, episode) }));
 }
 
 async function streamHandler(request, url, env, ctx) {

@@ -107,6 +107,7 @@ const routes = {
   '/browse/:id': viewBrowse,
   '/categories': viewCategories,
   '/categories/:type': viewCategories,
+  '/anime': viewAnime,
   '/movie/:id': viewDetail,
   '/tv/:id': viewDetail,
   '/watch/movie/:id': viewWatch,
@@ -128,6 +129,7 @@ function matchRoute(hash) {
 }
 function navigate(hash) { location.hash = hash; }
 function router() {
+  stopHeroTimer();
   const { fn, params } = matchRoute(location.hash || '#/');
   window.scrollTo(0, 0);
   fn(params);
@@ -141,12 +143,13 @@ window.addEventListener('hashchange', router);
 const app = document.createElement('div'); app.className = 'app';
 const sidebarHTML = `
 <aside class="sidebar" id="sidebar">
+  <div class="sb-resize" id="sbResize" title="Drag to resize"></div>
   <div class="logo"><a href="#/" title="${esc(SITE_NAME)}">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a></div>
   <div class="side-section">
     <a class="side-link" data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
-    <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>
-    <a class="side-link" data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
-    <a class="side-link" data-nav="categories" href="#/categories">${icon('film')}<span>Categories</span></a>
+    <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>      <a class="side-link" data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
+      <a class="side-link" data-nav="categories" href="#/categories">${icon('film')}<span>Categories</span></a>
+      <a class="side-link" data-nav="anime" href="#/anime">${icon('sparkles')}<span>Anime</span></a>
   </div>
   <div class="side-scroll">
     <div class="side-section">
@@ -178,7 +181,8 @@ const sidebarHTML = `
   </div>
 </nav>
 <div class="toast" id="toast"></div>`;
-app.innerHTML = sidebarHTML;
+app.innerHTML = sidebarHTML + `
+<a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>`;
 document.body.prepend(app);
 const main = $('#main');
 const footerNote = () => `<div class="footer-disclaimer">This site does not store any files on the server. We only link to media which is hosted on 3rd party services. All trademarks and copyrights belong to their respective owners.</div>`;
@@ -200,13 +204,39 @@ try {
     $('.collapse-btn').innerHTML = icon('chevR');
   }
 } catch {}
+/* Draggable sidebar width — grab the right edge and drag like a drawer (Apple-style). */
+(function initSidebarResize() {
+  const el = $('.app');
+  const min = 212, max = 420;
+  const apply = (w) => {
+    const cw = clamp(w, min, max);
+    el.style.setProperty('--sbw', cw + 'px');
+    try { localStorage.setItem('dx_sidebar_w', String(cw)); } catch {}
+  };
+  try { const saved = +localStorage.getItem('dx_sidebar_w'); if (saved >= min && saved <= max) apply(saved); } catch {}
+  const handle = $('#sbResize'); if (!handle) return;
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = parseFloat(getComputedStyle($('#sidebar')).width) || 264;
+    const move = (ev) => apply(startW + (ev.clientX - startX));
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      document.body.classList.remove('resizing');
+    };
+    document.body.classList.add('resizing');
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  });
+})();
 $('#moreBtn').addEventListener('click', () => { const sb = $('#sidebar'); sb.classList.toggle('open'); });
 document.addEventListener('click', (e) => { const sb = $('#sidebar'); if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('#moreBtn')) sb.classList.remove('open'); });
 
 function setActiveNav() {
   const path = (location.hash || '#/').replace(/^#/, '') || '/';
   const key = path.split('/')[1] || 'home';
-  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'categories', 'legal', 'home'].includes(key) ? key : '');
+  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'categories', 'anime', 'legal', 'home'].includes(key) ? key : '');
   $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
 }
 
@@ -270,16 +300,18 @@ function gridSection(title, items, viewAll) {
     <div class="grid">${items.map(m => backdropCard(m, { grid: true })).join('')}</div>
   </section>`;
 }
-function heroBanner(m) {
-  if (!m) return '';
+/* Hero slideshow — auto-rotating featured titles with crossfade, dots + arrows,
+   pause on hover, touch swipe. Stays compact so thumbnails never feel huge. */
+function heroSlide(m) {
   const title = m.title || m.name;
   const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
-  return `<div class="hero">
-    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" alt="">` : ''}
+  const med = m.media_type || (m.first_air_date ? 'tv' : 'movie');
+  return `<div class="hero-slide">
+    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" alt="" loading="lazy" decoding="async">` : ''}
     <div class="blob b1"></div><div class="blob b2"></div>
     <div class="shade"></div>
     <div class="content">
-      <div class="tag">${m.media_type === 'tv' ? 'Featured TV Series' : 'Featured Movie'}</div>
+      <div class="tag">${med === 'tv' ? 'Featured TV Series' : 'Featured Movie'}</div>
       <h1>${esc(title)}</h1>
       <div class="meta">
         ${rating ? `<span class="rate">${icon('star', 'inline')} ${rating}</span>` : ''}
@@ -289,12 +321,52 @@ function heroBanner(m) {
       </div>
       <p class="overview">${esc(m.overview || '')}</p>
       <div class="actions">
-        <a class="btn btn-primary" href="#/watch/${m.media_type || (m.first_air_date ? 'tv' : 'movie')}/${m.id}">${icon('play')} Watch Now</a>
-        <a class="btn btn-glass" href="#/${m.media_type || (m.first_air_date ? 'tv' : 'movie')}/${m.id}">${icon('info')} Details</a>
-        <button class="btn btn-ghost wl-btn" data-m='${esc(JSON.stringify({ id: m.id, media_type: m.media_type || (m.first_air_date ? 'tv' : 'movie'), title, name: m.name, poster_path: m.poster_path, backdrop_path: m.backdrop_path, vote_average: m.vote_average, release_date: m.release_date, first_air_date: m.first_air_date }))}'>${icon('bookmark')} <span>Watchlist</span></button>
+        <a class="btn btn-primary" href="#/watch/${med}/${m.id}">${icon('play')} Watch Now</a>
+        <a class="btn btn-glass" href="#/${med}/${m.id}">${icon('info')} Details</a>
+        <button class="btn btn-ghost wl-btn" data-m='${esc(JSON.stringify({ id: m.id, media_type: med, title, name: m.name, poster_path: m.poster_path, backdrop_path: m.backdrop_path, vote_average: m.vote_average, release_date: m.release_date, first_air_date: m.first_air_date }))}'>${icon('bookmark')} <span>Watchlist</span></button>
       </div>
     </div>
   </div>`;
+}
+function heroCarousel(items) {
+  const list = (items || []).filter(m => m.backdrop_path).slice(0, 6);
+  if (!list.length) return '';
+  return `<div class="hero" id="heroCaro">
+    ${list.map(heroSlide).join('')}
+    <button class="hero-nav prev" aria-label="Previous title">${icon('chevL')}</button>
+    <button class="hero-nav next" aria-label="Next title">${icon('chevR')}</button>
+    <div class="hero-dots">${list.map((m, i) => `<button class="hero-dot${i === 0 ? ' active' : ''}" data-i="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}</div>
+  </div>`;
+}
+let heroTimer = null;
+function stopHeroTimer() { if (heroTimer) { clearInterval(heroTimer); heroTimer = null; } }
+function bindHeroCarousel() {
+  const hero = $('#heroCaro'); if (!hero) return;
+  const slides = $$('.hero-slide', hero); if (!slides.length) return;
+  const dots = $$('.hero-dot', hero);
+  let idx = 0, timer = null;
+  const show = (i) => {
+    idx = (i + slides.length) % slides.length;
+    slides.forEach((s, k) => s.classList.toggle('active', k === idx));
+    dots.forEach((d, k) => d.classList.toggle('active', k === idx));
+  };
+  const next = () => show(idx + 1);
+  const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+  const start = () => { stop(); timer = setInterval(next, 6000); heroTimer = timer; };
+  $('.hero-nav.next', hero)?.addEventListener('click', (e) => { e.stopPropagation(); next(); start(); });
+  $('.hero-nav.prev', hero)?.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); start(); });
+  dots.forEach(d => d.addEventListener('click', () => { show(+d.dataset.i); start(); }));
+  hero.addEventListener('mouseenter', stop);
+  hero.addEventListener('mouseleave', start);
+  let tx = 0;
+  hero.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; stop(); }, { passive: true });
+  hero.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 40) { (dx < 0 ? next() : show(idx - 1)); }
+    start();
+  }, { passive: true });
+  show(0);
+  start();
 }
 
 /* ---------------- Row nav + auto-bind ---------------- */
@@ -314,36 +386,38 @@ function slideRow(row, dir) {
   };
   requestAnimationFrame(step);
 }
-/* Click-and-drag the row to slide it (like streamex / Netflix). */
-function makeRowDraggable(row) {
-  if (row.dataset.dragBound) return;
-  row.dataset.dragBound = '1';
-  let down = false, startX = 0, startL = 0, moved = false;
-  row.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    down = true; moved = false; startX = e.clientX; startL = row.scrollLeft;
-    row.classList.add('dragging');
-    try { row.setPointerCapture(e.pointerId); } catch {}
-  });
-  row.addEventListener('pointermove', (e) => {
-    if (!down) return;
-    const dx = e.clientX - startX;
-    if (Math.abs(dx) > 4) moved = true;
-    row.scrollLeft = startL - dx;
-  });
-  const end = () => { down = false; row.classList.remove('dragging'); };
-  row.addEventListener('pointerup', end);
-  row.addEventListener('pointercancel', end);
-  row.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+/* Show each arrow only when scrolling in that direction is actually possible. */
+function updateRowArrows(wrap, row) {
+  const max = Math.max(0, (row.scrollWidth || 0) - (row.clientWidth || 0));
+  const atEnd = row.scrollLeft >= max - 4;
+  $('.row-nav.prev', wrap)?.classList.toggle('off', row.scrollLeft <= 4);
+  $('.row-nav.next', wrap)?.classList.toggle('off', atEnd);
 }
+/* Rows move ONLY via the arrow buttons (like the user wants):
+   - mouse-wheel / trackpad horizontal scroll is blocked,
+   - no drag-scroll, no touch-scroll of the row itself,
+   - arrows appear/disappear based on the actual scroll position. */
+const rowData = [];
+window.addEventListener('resize', debounce(() => { rowData.forEach(r => { const wrap = r.closest('.row-wrap'); if (wrap) updateRowArrows(wrap, r); }); }, 120));
 function bindRowNavs() {
   $$('.row-wrap').forEach(wrap => {
     if (wrap.dataset.navBound) return;
     wrap.dataset.navBound = '1';
-    const row = $('.row, .episode-row', wrap); if (!row) return;
-    $('.row-nav.prev', wrap)?.addEventListener('click', () => slideRow(row, -1));
-    $('.row-nav.next', wrap)?.addEventListener('click', () => slideRow(row, 1));
-    makeRowDraggable(row);
+    const row = $('.row, .episode-row, .cast-row', wrap); if (!row) return;
+    const prev = $('.row-nav.prev', wrap), next = $('.row-nav.next', wrap);
+    prev?.addEventListener('click', () => slideRow(row, -1));
+    next?.addEventListener('click', () => slideRow(row, 1));
+    /* block horizontal wheel/trackpad scrolling of rows */
+    row.addEventListener('wheel', (e) => {
+      const dx = Math.abs(e.deltaX), dy = Math.abs(e.deltaY);
+      if (dx > dy && dx > 2) e.preventDefault();
+    }, { passive: false });
+    /* keep arrows honest as the row scrolls (also after slideRow animation) */
+    row.addEventListener('scroll', () => updateRowArrows(wrap, row), { passive: true });
+    rowData.push(row);
+    const upd = debounce(() => updateRowArrows(wrap, row), 60);
+    new MutationObserver(upd).observe(row, { childList: true, subtree: true });
+    updateRowArrows(wrap, row);
   });
 }
 
@@ -363,7 +437,7 @@ async function viewHome() {
     api('/movie/now_playing?language=en-US').then(r => r.results).catch(() => []),
     api('/movie/upcoming?language=en-US').then(r => r.results).catch(() => []),
   ]);
-  const hero = (trendingMovie[0] || popular[0]) && { ...(trendingMovie[0] || popular[0]), media_type: 'movie' };
+  const heroItems = [...trendingMovie.map(m => ({ ...m, media_type: 'movie' })), ...trendingTv.map(m => ({ ...m, media_type: 'tv' }))];
   const cont = Object.values(Store.progress.all())
     .filter(p => p && p.duration && p.time > 30 && p.time / p.duration < 0.92)
     .sort((a, b) => (b.ts || 0) - (a.ts || 0))
@@ -382,7 +456,7 @@ async function viewHome() {
       <div class="row scrollbar-hide">${contItems.map(continueCard).join('')}</div>
     </div>
   </section>` : '';
-  main.innerHTML = heroBanner(hero) +
+  main.innerHTML = heroCarousel(heroItems) +
     contRow +
     rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending') +
     rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending') +
@@ -391,6 +465,7 @@ async function viewHome() {
     rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing') +
     rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming') +
     footerNote();
+  bindHeroCarousel();
   bindWatchlistButtons();
 }
 
@@ -403,37 +478,64 @@ async function viewBrowse(params) {
   const genreId = q.genre || '';
   const decade = /^\d{4}$/.test(q.decade || '') ? q.decade : '';
   const simId = /^\d+$/.test(q.id || '') ? q.id : '';
-  const title = { movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse';
+  const anime = q.anime === '1';
+  const title = anime ? (type === 'movie' ? 'Anime Movies' : 'Anime Series') : ({ movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse');
   const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
   const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['on_the_air', 'On The Air']];
   const sorts = type === 'movie' ? movieSorts : tvSorts;
-  const qsExtra = `${genreId ? '&genre=' + genreId : ''}${decade ? '&decade=' + decade : ''}`;
+  const qsExtra = `${genreId ? '&genre=' + genreId : ''}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}`;
   main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${esc(title)}${decade ? ` <span class="muted" style="font-size:15px;font-weight:500">· ${decade}s</span>` : ''}</h1>
     <div class="filter-tabs">${sorts.map(s => `<button class="chip ${sort === s[0] ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${s[0]}${qsExtra}'">${s[1]}</button>`).join('')}</div>
-    ${decade ? `<div class="filter-tabs"><a class="chip active" href="#/browse/${type}?decade=${decade}">${icon('calendar','inline')} ${decade}s</a><a class="chip" href="#/browse/${type}">✕ Clear decade</a></div>` : ''}
+    ${decade ? `<div class="filter-tabs"><a class="chip active" href="#/browse/${type}?decade=${decade}${anime ? '&anime=1' : ''}">${icon('calendar','inline')} ${decade}s</a><a class="chip" href="#/browse/${type}${anime ? '?anime=1' : ''}">✕ Clear decade</a></div>` : ''}
     <div id="genreChips" class="filter-tabs"></div>
-    <div id="gridWrap">${SKELETON_GRID}</div>`;
+    <div id="gridWrap">${SKELETON_GRID}</div>
+    <div class="load-more-wrap" id="loadMoreWrap"></div>`;
   api(`/genre/${type}/list?language=en-US`).then(g => {
-    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}${decade ? '&decade=' + decade : ''}'">All</button>` +
-      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}${decade ? '&decade=' + decade : ''}'">${esc(x.name)}</button>`).join('');
-    if (!genreId && !decade) {
+    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}'">All</button>` +
+      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}'">${esc(x.name)}</button>`).join('');
+    if (!genreId && !decade && !anime) {
       const tiles = `<div class="genre-tiles">${g.genres.map(x => `<a class="genre-tile" href="#/browse/${type}?sort=${sort}&genre=${x.id}">${icon('film')} ${esc(x.name)}</a>`).join('')}</div>`;
       $('#gridWrap').insertAdjacentHTML('beforebegin', tiles);
     }
   }).catch(() => {});
-  const items = await apiWrap((async () => {
+  /* ---- paginated loader (Load More on every category) ---- */
+  let page = 1, totalPages = 1, busy = false;
+  const grid = $('#gridWrap');
+  const buildPath = (p) => {
     const sortBy = sort === 'trending' ? 'popularity.desc' : sort === 'top_rated' ? 'vote_average.desc' : sort === 'now_playing' ? 'primary_release_date.desc' : sort === 'upcoming' ? 'primary_release_date.asc' : sort === 'on_the_air' ? 'first_air_date.desc' : 'popularity.desc';
-    if (genreId) {
-      let qs = `/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sortBy}`;
-      if (decade) qs += '&' + dateRange(type, decade);
-      return (await api(qs)).results;
-    }
-    if (decade) return (await api(`/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}`)).results;
-    if (sort === 'similar' && simId) return (await api(`/${type}/${simId}/similar?language=en-US`)).results;
-    if (sort === 'trending') return (await api(`/trending/${type}/day?language=en-US`)).results;
-    return (await api(`/${type}/${sort}?language=en-US`)).results;
-  })());
-  if (items) $('#gridWrap').innerHTML = `<div class="grid">${items.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`;
+    const pg = `&page=${p}`;
+    if (anime) return `/discover/${type}?language=en-US&with_original_language=ja&with_genres=16&sort_by=${sortBy}${pg}`;
+    if (genreId) return `/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sortBy}${decade ? '&' + dateRange(type, decade) : ''}${pg}`;
+    if (decade) return `/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}${pg}`;
+    if (sort === 'similar' && simId) return `/${type}/${simId}/similar?language=en-US&page=${p}`;
+    if (sort === 'trending') return `/trending/${type}/day?language=en-US${pg}`;
+    return `/${type}/${sort}?language=en-US${pg}`;
+  };
+  const renderMore = () => {
+    const wrap = $('#loadMoreWrap');
+    if (!wrap) return;
+    wrap.innerHTML = (page < totalPages) ? `<button class="btn btn-glass load-more" id="loadMoreBtn">${icon('next')} Load More</button>
+      <div class="muted" style="font-size:12px;margin-top:10px;text-align:center">Page ${page} of ${totalPages}</div>` : (totalPages > 1 ? `<div class="muted" style="text-align:center;font-size:13px">You've reached the end 🎬</div>` : '');
+    $('#loadMoreBtn')?.addEventListener('click', async () => {
+      if (busy) return; busy = true;
+      const btn = $('#loadMoreBtn'); if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mini-spin"></span> Loading…'; }
+      const data = await api(buildPath(page + 1)).catch(() => null);
+      busy = false;
+      if (!data) { const b2 = $('#loadMoreBtn'); if (b2) { b2.disabled = false; b2.innerHTML = `${icon('next')} Load More`; toast('Could not load more — try again'); } return; }
+      if (data.results?.length) {
+        page += 1; totalPages = data.total_pages || totalPages;
+        grid.insertAdjacentHTML('beforeend', `<div class="grid">${data.results.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`);
+        bindWatchlistButtons();
+      }
+      renderMore();
+    });
+  };
+  const first = await apiWrap(api(buildPath(1)));
+  if (first && first.results) {
+    totalPages = first.total_pages || 1; page = 1;
+    grid.innerHTML = `<div class="grid">${first.results.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`;
+    renderMore();
+  }
   bindWatchlistButtons();
 }
 
@@ -465,20 +567,57 @@ async function viewCategories(params) {
     <div id="catBody"><div class="skeleton" style="height:220px;border-radius:20px"></div></div>`;
   const g = await api(`/genre/${type}/list?language=en-US`).catch(() => ({ genres: [] }));
   const genres = g.genres || [];
+  /* fetch one real backdrop per genre so tiles feel relatable (capped, parallel) */
+  const arts = await Promise.all(genres.slice(0, 18).map(async (x) => {
+    const r = await api(`/discover/${type}?language=en-US&with_genres=${x.id}&sort_by=popularity.desc`).catch(() => null);
+    return (r && r.results && r.results[0] && r.results[0].backdrop_path) ? IMG_BACKDROP(r.results[0].backdrop_path) : '';
+  }));
   const decades = [['2020', '2020s'], ['2010', '2010s'], ['2000', '2000s'], ['1990', '1990s'], ['1980', '1980s'], ['1970', '1970s & older']];
   $('#catBody').innerHTML =
     `<h2 class="section-title" style="margin-bottom:14px">${icon('film','inline')} Browse by genre</h2>` +
-    `<div class="cat-grid">${genres.map((x, i) => `<a class="cat-tile" style="background:${CAT_GRADS[i % CAT_GRADS.length]}" href="#/browse/${type}?genre=${x.id}" title="${esc(x.name)}"><span class="cat-name">${esc(x.name)}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
+    `<div class="cat-grid">${genres.map((x, i) => `<a class="cat-tile" style="background:${CAT_GRADS[i % CAT_GRADS.length]}" href="#/browse/${type}?genre=${x.id}" title="${esc(x.name)}">${arts[i] ? `<img class="cat-bg" src="${arts[i]}" alt="" loading="lazy" decoding="async">` : ''}<span class="cat-shade"></span><span class="cat-name">${esc(x.name)}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
     `<h2 class="section-title" style="margin:30px 0 14px">${icon('calendar','inline')} Browse by decade</h2>` +
     `<div class="cat-grid cat-decades">${decades.map(([d, label]) => `<a class="cat-tile cat-decade" href="#/browse/${type}?decade=${d}"><span class="cat-name">${label}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
     `<h2 class="section-title" style="margin:30px 0 14px">${icon('sparkles','inline')} Quick picks</h2>` +
     `<div class="filter-tabs">${[['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], type === 'movie' ? ['now_playing', 'Now Playing'] : ['on_the_air', 'On The Air']].map(s => `<a class="chip" href="#/browse/${type}?sort=${s[0]}">${s[1]}</a>`).join('')}</div>`;
 }
 
+/* ---------------- ANIME PAGE ---------------- */
+async function viewAnime() {
+  main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${icon('sparkles', 'inline')} Anime</h1>
+    <div class="filter-tabs" id="animeTabs">
+      <button class="chip active" data-aw="mix">All</button>
+      <button class="chip" data-aw="series">Series</button>
+      <button class="chip" data-aw="movies">Movies</button>
+    </div>
+    <div id="animeBody">${SKELETON_ROW}${SKELETON_ROW}${SKELETON_GRID}</div>`;
+  const load = async (aw) => {
+    const body = $('#animeBody');
+    body.innerHTML = SKELETON_ROW + SKELETON_ROW + SKELETON_GRID;
+    const [series, movies, top] = await Promise.all([
+      api('/discover/tv?language=en-US&with_original_language=ja&with_genres=16&sort_by=popularity.desc&page=1').then(r => r.results).catch(() => []),
+      api('/discover/movie?language=en-US&with_original_language=ja&with_genres=16&sort_by=popularity.desc&page=1').then(r => r.results).catch(() => []),
+      api('/discover/tv?language=en-US&with_original_language=ja&with_genres=16&sort_by=vote_average.desc&vote_count.gte=200&page=1').then(r => r.results).catch(() => []),
+    ]);
+    const rows = [];
+    if (aw !== 'movies') rows.push(rowSection('Trending Anime Series', series.map(m => ({ ...m, media_type: 'tv' })), '#/browse/tv?anime=1'));
+    if (aw !== 'series') rows.push(rowSection('Anime Movies', movies.map(m => ({ ...m, media_type: 'movie' })), '#/browse/movie?anime=1'));
+    rows.push(gridSection('Top Rated Anime', top.slice(0, 10).map(m => ({ ...m, media_type: 'tv' })), '#/browse/tv?sort=top_rated&anime=1'));
+    body.innerHTML = rows.join('') + footerNote();
+    bindWatchlistButtons();
+  };
+  $('#animeTabs').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    $$('.chip', $('#animeTabs')).forEach(c => c.classList.toggle('active', c === b));
+    load(b.dataset.aw);
+  });
+  load('mix');
+}
+
 async function viewSearch() {
   const q = parseQuery(location.hash.split('?')[1]);
   const query = (q.q || '').trim();
-  main.innerHTML = `<div class="search-bar">${icon('search')}<input id="searchInput" placeholder="Search movies, TV shows..." value="${esc(query)}" autofocus></div>
+  main.innerHTML = `<div class="search-bar">${icon('search')}<input id="searchInput" placeholder="Search movies, TV shows..." value="${esc(query)}" autofocus autocomplete="off" spellcheck="false" name="dx-search"></div>
     <div class="filter-tabs" id="searchTabs">
       <button class="chip active" data-st="multi">All</button>
       <button class="chip" data-st="movie">Movies</button>
@@ -517,7 +656,7 @@ async function viewDetail(params) {
   if (!d) { main.innerHTML = `<div class="empty-state"><h3>Title not found</h3></div>`; return; }
   const title = d.title || d.name;
   const trailer = (d.videos?.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube');
-  const cast = credits.cast?.slice(0, 12) || [];
+  const cast = credits.cast?.slice(0, 14) || [];
   const genres = (d.genres || []).map(g => g.name);
   const meta = [];
   if (d.vote_average) meta.push(`<span class="rate">${icon('star', 'inline')} ${Number(d.vote_average).toFixed(1)}</span>`);
@@ -546,7 +685,11 @@ async function viewDetail(params) {
       </div>
     </div>
     ${type === 'tv' ? `<div id="tvSection"><div class="detail-panel"><div class="skeleton" style="height:160px"></div></div></div>` : ''}
-    ${cast.length ? `<div class="detail-panel"><h3>${icon('users')} Cast</h3><div class="cast-row scrollbar-hide">${cast.map(c => `<div class="cast-card"><div class="avatar">${c.profile_path ? `<img loading="lazy" src="${IMG_FACE(c.profile_path)}" alt="">` : ''}</div><div class="name">${esc(c.name || '')}</div><div class="role">${esc(c.character || '')}</div></div>`).join('')}</div></div>` : ''}
+    ${cast.length ? `<div class="detail-panel"><h3>${icon('users')} Cast <span class="muted" style="font-size:12px;font-weight:500">(${cast.length})</span></h3><div class="row-wrap cast-wrap">
+      <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
+      <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
+      <div class="cast-row scrollbar-hide">${cast.map(c => `<div class="cast-card"><div class="avatar">${c.profile_path ? `<img loading="lazy" src="${IMG_FACE(c.profile_path)}" alt="">` : `<i class="ph-play ph-sm">${icon('users')}</i>`}</div><div class="name">${esc(c.name || '')}</div><div class="role">${esc(c.character || '')}</div></div>`).join('')}</div>
+    </div></div>` : ''}
     ${rowSection('Similar Titles', similar, `#/browse/${type}?sort=similar&id=${id}`)}
     ${footerNote()}`;
   bindWatchlistButtons();
@@ -622,15 +765,43 @@ async function viewWatch(params) {
     srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="muted">No playable sources found for this title right now. Try again later.</div></div>`;
     return;
   }
-  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}">${esc(s.name)}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">If a server doesn't play, switch to another one below.</div></div>`;
+  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${i === 0 ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${i === 0 ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
+    <div class="muted" style="font-size:12px;margin-top:10px">If a server doesn't play, just pick another one below — all 15 are here.</div></div>`;
   const tabs = $('#srvTabs');
+  /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
+  const playerChrome = (s, loadingTxt) => `
+    <div class="pl-top">
+      <div class="pl-title"><span class="pl-mark">${LOGO_MARK.replace('logo-mark', 'pl-mark-svg')}</span><span class="pl-t">${esc(title)}</span>${epName ? `<em class="pl-ep">${esc(epName)}</em>` : ''}</div>
+      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span><button class="pl-fs" id="plFs" title="Fullscreen">${icon('fullscreen')}</button></div>
+    </div>
+    <div class="pl-loading" id="plLoading"><div class="pl-ring"><i></i></div><div class="pl-loading-txt">${esc(loadingTxt || 'Connecting to ' + s.name)}</div></div>
+    <div class="pl-err" id="plErr">
+      <div class="pl-err-ico">${icon('info')}</div>
+      <div class="pl-err-title">This server may be blocked or unavailable</div>
+      <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
+      <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
+    </div>
+    <iframe id="plFrame" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
+  let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];
     $$('.server-tab', tabs).forEach(t => t.classList.toggle('active', +t.dataset.i === i));
-    // sandbox (no allow-popups / allow-top-navigation) blocks popunder & redirect ads
-    // that embed providers fire on click; no-referrer hides our referrer from ad networks.
-    $('#playerShell').innerHTML = `<iframe src="${esc(s.url)}" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    const shell = $('#playerShell');
+    shell.innerHTML = playerChrome(s);
+    const frame = $('#plFrame'), err = $('#plErr'), loading = $('#plLoading');
+    let loaded = false;
+    const hideLoading = () => { loading.style.opacity = '0'; loading.style.pointerEvents = 'none'; };
+    const showErr = () => { err.classList.add('show'); hideLoading(); };
+    clearTimeout(loadTimer);
+    /* an embed that loads a page is “playing” — hide the ring; if nothing loads
+       in 14s, show the animated error card instead of a silent black screen */
+    frame.addEventListener('load', () => { loaded = true; hideLoading(); });
+    loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000);
+    $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
+    $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); const el = shell; if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); });
+    /* set src only after the load listener is attached (no race → loading ring
+       always resolves to either the video or the error card) */
+    frame.src = s.url;
   };
   tabs.addEventListener('click', e => { const b = e.target.closest('.server-tab'); if (b) select(+b.dataset.i); });
   select(0);
