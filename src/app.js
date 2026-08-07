@@ -417,6 +417,10 @@ function heroCarousel(items) {
 }
 let heroTimer = null;
 function stopHeroTimer() { if (heroTimer) { clearInterval(heroTimer); heroTimer = null; } }
+/* one source of truth for the chrome-hiding trailer embed URL — used by the
+   hero hover preview AND the detail-page background trailer so the params
+   (modestbranding, rel=0, fs=0, …) can never drift apart */
+const ytTrailer = (k) => `https://www.youtube-nocookie.com/embed/${k}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist=${k}&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0`;
 /* Netflix-style: hover over the hero and the current slide's trailer plays muted
    inline; moving away stops it. Trailers are fetched lazily once per title and
    cached, and only on hover-capable devices (touch never autoplays video). */
@@ -450,7 +454,7 @@ async function playHeroTrailer(hero) {
     /* modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0 + the CSS cover-crop
        keep YouTube's logo, title bar and controls out of view — it plays as a
        native full-bleed trailer, not an embedded YT player */
-    box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${k}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist=${k}&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1"></iframe>`;
+    box.innerHTML = `<iframe src="${ytTrailer(k)}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1"></iframe>`;
   }
   box.classList.add('play');
   slide.classList.add('playing');
@@ -878,6 +882,9 @@ async function viewDetail(params) {
   if (!d) { main.innerHTML = `<div class="empty-state"><h3>Title not found</h3></div>`; return; }
   const title = d.title || d.name;
   const trailer = (d.videos?.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube');
+  /* phones on Data Saver skip the background trailer — the hero falls back to
+     the normal still backdrop, exactly like a title without a trailer */
+  const skipTrailer = !!(navigator.connection && navigator.connection.saveData);
   const cast = credits.cast?.slice(0, 14) || [];
   const genres = (d.genres || []).map(g => g.name);
   const meta = [];
@@ -888,8 +895,9 @@ async function viewDetail(params) {
   if (d.status) meta.push(`<span>${esc(d.status)}</span>`);
   const wl = Store.watchlist.has(Number(id), type);
   main.innerHTML = `
-    <div class="detail-hero">
+    <div class="detail-hero${trailer && !skipTrailer ? ' has-trailer' : ''}">
       ${d.backdrop_path ? `<img class="backdrop" src="${IMG_HERO(d.backdrop_path)}" alt="">` : ''}
+      ${trailer && !skipTrailer ? `<div class="detail-trailer"><iframe src="${ytTrailer(trailer.key)}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1"></iframe></div>` : ''}
       <div class="shade"></div>
       <div class="content">
         <div class="poster">${d.poster_path ? `<img src="${IMG_POSTER(d.poster_path)}" alt="">` : ''}</div>

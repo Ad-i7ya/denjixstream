@@ -623,8 +623,25 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 /* ---------- Detail page ---------- */
 .detail-hero { position: relative; border-radius: 28px; overflow: hidden; margin-bottom: 26px; border: 1px solid rgba(255,255,255,.13); box-shadow: var(--shadow-glass); }
 .detail-hero .backdrop { width: 100%; aspect-ratio: 21/7.5; object-fit: cover; }
-.detail-hero .shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(8,8,12,.97) 0%, rgba(8,8,12,.62) 55%, rgba(8,8,12,.22) 100%); }
-.detail-hero .content { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 36px; gap: 28px; z-index: 2; }
+/* the trailer plays full-bleed as the hero background (same cover-crop +
+   chrome-hiding as the hero carousel) when the title has one — otherwise the
+   still backdrop stays. Layered: backdrop(0) → trailer(1) → shade(2) → content(3). */
+.detail-hero .detail-trailer { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+.detail-hero .detail-trailer iframe {
+  position: absolute; top: 50%; left: 50%;
+  width: 100%; aspect-ratio: 16/9;
+  transform: translate(-50%, -50%);
+  border: 0; pointer-events: none;
+}
+.detail-hero.has-trailer .backdrop { opacity: 0; transition: opacity .6s var(--ease-smooth); }
+.detail-hero.has-trailer .shade { opacity: .82; transition: opacity .6s var(--ease-smooth); }
+.detail-hero .shade { position: absolute; inset: 0; z-index: 2; background: linear-gradient(0deg, rgba(8,8,12,.97) 0%, rgba(8,8,12,.62) 55%, rgba(8,8,12,.22) 100%); }
+.detail-hero .content { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 36px; gap: 28px; z-index: 3; }
+/* on narrow screens the 16/8.5 hero barely crops a 16:9 video — scale it up so
+   YouTube's title bar stays outside the crop and it plays native full-bleed */
+@media (max-width: 1100px) {
+  .detail-hero .detail-trailer iframe { transform: translate(-50%, -50%) scale(1.15); }
+}
 .poster {
   width: 150px; aspect-ratio: 2/3; border-radius: 18px; overflow: hidden; flex-shrink: 0;
   border: 1px solid var(--glass-border); box-shadow: 0 18px 48px rgba(0,0,0,.6);
