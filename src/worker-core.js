@@ -367,6 +367,10 @@ async function serveApp(request, env, siteName, ctx) {
     '<link rel="icon" href="data:image/svg+xml,' + encodeURIComponent(FAVICON) + '">\n' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n' +
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
+    /* the site is image-heavy — warm up the TMDB image CDN connection so
+       every poster/backdrop skips the DNS+TLS round trip (big perceived-LCP win) */
+    '<link rel="preconnect" href="https://image.tmdb.org">\n' +
+    '<link rel="dns-prefetch" href="https://image.tmdb.org">\n' +
     '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">\n' +
     '<style>\n' + STYLES + '\n</style>\n' +
     '</head>\n<body>\n' +

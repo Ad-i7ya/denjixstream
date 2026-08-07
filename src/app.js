@@ -113,9 +113,14 @@ const LOGO_WORD = (name) => {
 
 /* ---------------- TOAST ---------------- */
 let toastTimer;
-function toast(msg) {
+/* kind: 'success' | 'error' — tints the pill (green/red glow) so feedback
+   reads at a glance instead of every message looking identical */
+function toast(msg, kind) {
   let t = $('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
-  t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer);
+  t.textContent = msg;
+  t.classList.toggle('error', kind === 'error');
+  t.classList.toggle('success', kind === 'success');
+  t.classList.add('show'); clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
@@ -499,7 +504,7 @@ function closeReportModal() {
 }
 async function submitReport() {
   const msg = ($('#reportMsg') ? $('#reportMsg').value : '').trim();
-  if (msg.length < 5) { toast('Please describe the problem (at least 5 characters).', true); return; }
+  if (msg.length < 5) { toast('Please describe the problem (at least 5 characters).', 'error'); return; }
   const btn = $('#reportSend'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
     const r = await fetch('/api/report', {
@@ -507,9 +512,9 @@ async function submitReport() {
       body: JSON.stringify({ cat: reportCat, msg, contact: $('#reportContact') ? $('#reportContact').value : '', page: location.hash || '/' }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok) { toast('✓ Report sent — thank you!'); closeReportModal(); }
-    else toast(d.error || 'Could not send the report.', true);
-  } catch (_) { toast('Network error — please try again.', true); }
+    if (r.ok) { toast('✓ Report sent — thank you!', 'success'); closeReportModal(); }
+    else toast(d.error || 'Could not send the report.', 'error');
+  } catch (_) { toast('Network error — please try again.', 'error'); }
   btn.disabled = false; btn.textContent = 'Send report';
 }
 document.addEventListener('click', (e) => {
@@ -601,12 +606,15 @@ function gridSection(title, items, viewAll) {
 }
 /* Hero slideshow — auto-rotating featured titles with crossfade, dots + arrows,
    pause on hover, touch swipe. Stays compact so thumbnails never feel huge. */
-function heroSlide(m) {
+function heroSlide(m, i) {
   const title = m.title || m.name;
   const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
   const med = m.media_type || (m.first_air_date ? 'tv' : 'movie');
+  /* the first slide is the above-the-fold LCP image — load it eagerly at high
+     priority; the hidden slides stay lazy (they crossfade in later) */
+  const eager = i === 0 ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"';
   return `<div class="hero-slide" data-id="${m.id}" data-media="${med}">
-    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" data-hi="${IMG_HERO(m.backdrop_path)}" alt="" loading="lazy" decoding="async">` : ''}
+    ${m.backdrop_path ? `<img class="backdrop" src="${IMG_BACKDROP(m.backdrop_path)}" data-hi="${IMG_HERO(m.backdrop_path)}" alt=""${eager} decoding="async">` : ''}
     <div class="blob b1"></div><div class="blob b2"></div>
     <div class="shade"></div>
     <div class="hero-trailer"></div>
@@ -632,7 +640,7 @@ function heroCarousel(items) {
   const list = (items || []).filter(m => m.backdrop_path).slice(0, 6);
   if (!list.length) return '';
   return `<div class="hero" id="heroCaro">
-    ${list.map(heroSlide).join('')}
+    ${list.map((m, i) => heroSlide(m, i)).join('')}
     <button class="hero-nav prev" aria-label="Previous title">${icon('chevL')}</button>
     <button class="hero-nav next" aria-label="Next title">${icon('chevR')}</button>
     <div class="hero-dots">${list.map((m, i) => `<button class="hero-dot${i === 0 ? ' active' : ''}" data-i="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}</div>
@@ -962,7 +970,7 @@ async function viewBrowse(params) {
       const btn = $('#loadMoreBtn'); if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mini-spin"></span> Loading…'; }
       const data = await api(buildPath(page + 1)).catch(() => null);
       busy = false;
-      if (!data) { const b2 = $('#loadMoreBtn'); if (b2) { b2.disabled = false; b2.innerHTML = `${icon('next')} Load More`; toast('Could not load more — try again'); } return; }
+      if (!data) { const b2 = $('#loadMoreBtn'); if (b2) { b2.disabled = false; b2.innerHTML = `${icon('next')} Load More`; toast('Could not load more — try again', 'error'); } return; }
       if (data.results?.length) {
         page += 1; totalPages = data.total_pages || totalPages;
         grid.insertAdjacentHTML('beforeend', `<div class="grid">${data.results.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`);
@@ -1699,7 +1707,7 @@ function viewHistory() {
       return `<div class="card grid-card" onclick="location.hash='${href.slice(1)}'">${h.backdrop ? `<img loading="lazy" src="${IMG_CARD(h.backdrop)}" alt="">` : ''}<div class="glass"><div class="title">${esc(h.title)}</div><div class="sub">${h.type === 'tv' ? `S${h.season}·E${h.episode}` : 'Movie'} · ${new Date(h.ts).toLocaleDateString()}</div></div>${progressFlag(m)}</div>`;
     }).join('')}</div>` : `<div class="empty-state">${icon('clock')}<h3>No watch history yet</h3><p class="muted">Titles you watch will appear here.</p></div>`) +
     footerNote();
-  $('#clearHist')?.addEventListener('click', () => { Store.history.clear(); viewHistory(); toast('History cleared'); });
+  $('#clearHist')?.addEventListener('click', () => { Store.history.clear(); viewHistory(); toast('History cleared', 'success'); });
 }
 
 function viewLegal() {
@@ -1721,7 +1729,7 @@ function bindWatchlistButtons() {
       const added = Store.watchlist.toggle(m);
       const span = b.querySelector('span'); if (span) span.textContent = added ? 'In Watchlist ✓' : 'Watchlist';
       b.closest('.card')?.classList.toggle('in-wl', added);
-      toast(added ? 'Added to watchlist' : 'Removed from watchlist');
+      toast(added ? 'Added to watchlist' : 'Removed from watchlist', 'success');
     };
   });
 }
