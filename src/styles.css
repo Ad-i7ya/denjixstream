@@ -169,8 +169,8 @@ body.resizing * { cursor: col-resize !important; }
 }
 /* Floating logo chip — always visible so every page has a home button */
 .float-logo {
-  position: fixed; top: 16px; left: 16px; z-index: 55;
-  display: none; align-items: center; gap: 9px;
+  position: fixed; top: 16px; left: calc(var(--sbw, 264px) + 18px); z-index: 55;
+  display: flex; align-items: center; gap: 9px;
   padding: 8px 16px 8px 9px; border-radius: 999px;
   background: rgba(20,20,28,.6);
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
@@ -201,7 +201,7 @@ body.resizing * { cursor: col-resize !important; }
 .sidebar.open ~ .menu-btn span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
 .sidebar.open ~ .menu-btn span:nth-child(2) { opacity: 0; }
 .sidebar.open ~ .menu-btn span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
-.app.sidebar-hidden .float-logo { display: flex; }
+.app.sidebar-hidden .float-logo { left: 18px; }
 .app.sidebar-hidden .main-scroll { padding-top: 26px; }
 .app.sidebar-hidden .main-area { margin-left: 0; }
 .main-scroll {
@@ -1129,6 +1129,12 @@ body.ep-open { overflow: hidden; }
 .grid, .cat-grid { content-visibility: auto; contain-intrinsic-size: auto 520px; }
 /* home-page category rows cascade in after the main rows finish loading */
 #genreRows section { animation: fadeUp .55s var(--ease-smooth) both; }
+/* pages that open with a title/search bar/player clear the floating logo so
+   nothing sits underneath it (desktop) */
+.main-scroll.logo-gap { padding-top: 72px; }
+@media (max-width: 1024px) {
+  .main-scroll.logo-gap { padding-top: 66px; }
+}
 
 /* ---------- Responsive / orientation ---------- */
 @media (max-width: 1100px) {

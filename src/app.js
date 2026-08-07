@@ -138,6 +138,10 @@ function router() {
   const { fn, params } = matchRoute(location.hash || '#/');
   window.scrollTo(0, 0);
   fn(params);
+  /* pages that open with a title / search bar / player get top clearance so
+     the always-visible floating logo never overlaps their header */
+  const rp = (location.hash.replace(/^#/, '') || '/').split('?')[0];
+  main.classList.toggle('logo-gap', /^\/(search|browse|categories|anime|watchlist|history|legal|watch)\b/.test(rp));
   // re-trigger the per-view fade-up AFTER render for Apple-smooth transitions
   main.classList.remove('view-enter'); void main.offsetWidth; main.classList.add('view-enter');
   setActiveNav();
