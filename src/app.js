@@ -189,7 +189,15 @@ app.innerHTML = sidebarHTML + `
 <a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>`;
 document.body.prepend(app);
 const main = $('#main');
-const footerNote = () => `<div class="footer-disclaimer">This site does not store any files on the server. We only link to media which is hosted on 3rd party services. All trademarks and copyrights belong to their respective owners.</div>`;
+const footerNote = () => `<footer class="site-footer">
+  <a class="foot-brand" href="#/">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>
+  <nav class="foot-links" aria-label="Footer">
+    <a href="#/">Home</a><a href="#/browse/movie">Movies</a><a href="#/browse/tv">TV Shows</a>
+    <a href="#/anime">Anime</a><a href="#/categories">Categories</a><a href="#/legal">Legal / DMCA</a>
+  </nav>
+  <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
+  <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
+</footer>`;
 
 /* Apple-style hamburger — opens the liquid-glass drawer on tablets/phones */
 $('#menuBtn').addEventListener('click', () => {
@@ -419,6 +427,11 @@ function bindHeroCarousel() {
   }, { passive: true });
   show(0);
   start();
+  /* pause the slideshow while it's off-screen — saves compositing while scrolling */
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((ents) => ents.forEach(en => en.isIntersecting ? start() : stop()), { threshold: 0.03 });
+    io.observe(hero);
+  }
 }
 
 /* ---------------- Row nav + auto-bind ---------------- */

@@ -65,8 +65,10 @@ img { display: block; }
   background:
     radial-gradient(130% 55% at 15% 0%, rgba(255,255,255,.14), rgba(255,255,255,0) 52%),
     linear-gradient(180deg, rgba(40,40,52,.52), rgba(15,15,21,.44));
-  -webkit-backdrop-filter: blur(36px) saturate(190%);
-  backdrop-filter: blur(36px) saturate(190%);
+  /* 30px radius keeps the deep frost but costs far less GPU than 36px on a
+     full-height fixed pane that re-samples on every scroll */
+  -webkit-backdrop-filter: blur(30px) saturate(175%);
+  backdrop-filter: blur(30px) saturate(175%);
   border-right: 1px solid rgba(255,255,255,.16);
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
   display: flex; flex-direction: column;
@@ -215,9 +217,11 @@ body.resizing * { cursor: col-resize !important; }
 /* Mobile bottom nav — frosted floating bar */
 .mobile-nav {
   display: none; position: fixed; bottom: 12px; left: 12px; right: 12px; z-index: 60;
-  background: rgba(22, 22, 28, 0.72);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
+  background: rgba(22, 22, 28, 0.74);
+  /* blur-soft: an always-on full-width fixed bar re-samples on every scroll —
+     the lighter blur is visually identical here but far cheaper on phones */
+  -webkit-backdrop-filter: var(--blur-soft);
+  backdrop-filter: var(--blur-soft);
   border: 1px solid var(--glass-border);
   border-radius: 22px;
   box-shadow: var(--shadow-glass), var(--highlight-inset);
@@ -394,6 +398,10 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; justify-content: flex-end;
   padding: 40px 46px; gap: 10px; max-width: 760px;
+  /* liquid-glass text panel over the hero artwork */
+  background: linear-gradient(90deg, rgba(8,8,14,.5), rgba(8,8,14,.1) 70%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
 }
 .hero-slide .tag { font-size: 11.5px; letter-spacing: .2em; color: #9ecbff; text-transform: uppercase; font-weight: 600; }
 .hero-slide h1 {
@@ -1079,17 +1087,36 @@ body.ep-open { overflow: hidden; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 
 /* ---------- Skeletons ---------- */
-.skeleton { background: linear-gradient(90deg, rgba(255,255,255,.05) 25%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.05) 75%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 12px; }
-@keyframes shimmer { to { background-position: -200% 0; } }
+/* skeleton pulses opacity — compositor-only, no background repaints (kills load jank) */
+.skeleton { background: rgba(255,255,255,.07); animation: skPulse 1.25s ease-in-out infinite; border-radius: 12px; }
+@keyframes skPulse { 0%, 100% { opacity: .4; } 50% { opacity: .9; } }
 
 /* ---------- Footer ---------- */
-.footer-disclaimer {
-  margin-top: 44px; padding: 18px 22px; border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+/* Full footer — replaces the old bare disclaimer box */
+.site-footer {
+  margin-top: 48px; padding: 28px 26px; border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
   border: 1px solid var(--glass-border);
   -webkit-backdrop-filter: var(--blur-soft); backdrop-filter: var(--blur-soft);
-  font-size: 12.5px; color: var(--text-muted); line-height: 1.7; text-align: center;
+  box-shadow: var(--highlight-inset);
+  display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
 }
+.foot-brand { display: inline-flex; align-items: center; gap: 10px; transition: opacity .25s; }
+.foot-brand:hover { opacity: .85; }
+.foot-brand .logo-mark { width: 30px; height: 30px; }
+.foot-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.foot-links a {
+  padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--text-dim);
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  transition: all .25s var(--ease-smooth);
+}
+.foot-links a:hover { color: #fff; background: rgba(255,255,255,.13); transform: translateY(-1px); }
+.foot-legal { font-size: 12px; color: var(--text-muted); line-height: 1.7; max-width: 640px; margin: 0; }
+.foot-copy { font-size: 12px; color: var(--text-muted); margin: 0; }
+.heart { color: #ff4d6d; }
+/* off-screen grids skip layout + paint until scrolled near — smooth scrolling;
+   the auto intrinsic size remembers each grid's real height after first paint */
+.grid, .cat-grid { content-visibility: auto; contain-intrinsic-size: auto 520px; }
 
 /* ---------- Responsive / orientation ---------- */
 @media (max-width: 1100px) {
