@@ -130,6 +130,9 @@ function matchRoute(hash) {
 function navigate(hash) { location.hash = hash; }
 function router() {
   stopHeroTimer();
+  /* tear down any leftover episode overlay + its cache on navigation */
+  const oldOv = document.getElementById('epOverlay');
+  if (oldOv) { oldOv.remove(); epOpen = false; epCloseFn = null; document.body.classList.remove('ep-open'); epCache = {}; }
   const { fn, params } = matchRoute(location.hash || '#/');
   window.scrollTo(0, 0);
   fn(params);
@@ -772,7 +775,7 @@ async function viewWatch(params) {
   const playerChrome = (s, loadingTxt) => `
     <div class="pl-top">
       <div class="pl-title"><span class="pl-mark">${LOGO_MARK.replace('logo-mark', 'pl-mark-svg')}</span><span class="pl-t">${esc(title)}</span>${epName ? `<em class="pl-ep">${esc(epName)}</em>` : ''}</div>
-      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span><button class="pl-fs" id="plFs" title="Fullscreen">${icon('fullscreen')}</button></div>
+      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span>${isTv ? `<button class="pl-fs" id="plEps" title="Episodes">${icon('tv')}<b>${esc(epName || 'Eps')}</b></button>` : ''}<button class="pl-fs" id="plFs" title="Fullscreen">${icon('fullscreen')}</button></div>
     </div>
     <div class="pl-loading" id="plLoading"><div class="pl-ring"><i></i></div><div class="pl-loading-txt">${esc(loadingTxt || 'Connecting to ' + s.name)}</div></div>
     <div class="pl-err" id="plErr">
@@ -799,6 +802,7 @@ async function viewWatch(params) {
     loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000);
     $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
     $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); const el = shell; if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); });
+    $('#plEps')?.addEventListener('click', (e) => { e.stopPropagation(); openEpOverlay(); });
     /* set src only after the load listener is attached (no race → loading ring
        always resolves to either the video or the error card) */
     frame.src = s.url;
@@ -808,8 +812,82 @@ async function viewWatch(params) {
   bindWatchlistButtons();
 }
 
+/* ---- Overlayed scrollable episode list (like streamex.sh): a glass drawer that
+        opens from the player's Episodes button, with season tabs + vertical list ---- */
+let epSeasons = [];
+let epCache = {};
+let epOpen = false;
+let epCloseFn = null;
+/* single global Escape handler — registered once, routed through epCloseFn so
+   navigating between TV shows never stacks duplicate keydown listeners */
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && epCloseFn) epCloseFn(); });
+function buildEpOverlay(id, curSeason, curEpisode) {
+  if (document.getElementById('epOverlay')) return;
+  const ov = document.createElement('div');
+  ov.className = 'ep-overlay';
+  ov.id = 'epOverlay';
+  ov.innerHTML = `<div class="ep-panel">
+    <div class="ep-head">
+      <div class="ep-head-l">${icon('tv')} <span>Episodes</span></div>
+      <div class="ep-head-r">
+        <div class="season-tabs scrollbar-hide" id="epSeasons"></div>
+        <button class="ep-close" id="epClose" aria-label="Close">${icon('x')}</button>
+      </div>
+    </div>
+    <div class="ep-list scrollbar-hide" id="epList"><div class="skeleton" style="height:90px;margin-bottom:10px"></div><div class="skeleton" style="height:90px;margin-bottom:10px"></div></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const close = () => { ov.classList.remove('open'); epOpen = false; epCloseFn = null; document.body.classList.remove('ep-open'); };
+  epCloseFn = close;
+  $('#epClose', ov).addEventListener('click', close);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  const tabs = $('#epSeasons', ov);
+  tabs.innerHTML = epSeasons.map(s => `<button class="chip ${s.season_number === curSeason ? 'active' : ''}" data-s="${s.season_number}">S${s.season_number}</button>`).join('');
+  const list = $('#epList', ov);
+  const loadSeason = async (n, highlight) => {
+    $$('.chip', tabs).forEach(c => c.classList.toggle('active', +c.dataset.s === n));
+    if (epCache[n]) { list.innerHTML = epCache[n]; }
+    else {
+      list.innerHTML = '<div class="skeleton" style="height:90px;margin-bottom:10px"></div><div class="skeleton" style="height:90px;margin-bottom:10px"></div>';
+      const data = await api(`/tv/${id}/season/${n}?language=en-US`).catch(() => null);
+      if (!data) { list.innerHTML = '<div class="ep-empty">Could not load episodes.</div>'; return; }
+      epCache[n] = data.episodes.map(ep => epOverlayItem(ep, id, n, curSeason, curEpisode)).join('');
+      list.innerHTML = epCache[n];
+    }
+    if (highlight) {
+      const cur = list.querySelector('.ep-item.current');
+      if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  };
+  tabs.addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) loadSeason(+b.dataset.s, false); });
+  window.openEpOverlay = () => {
+    ov.classList.add('open'); epOpen = true; document.body.classList.add('ep-open');
+    loadSeason(curSeason, true);
+  };
+}
+function epOverlayItem(ep, tvId, season, curSeason, curEpisode) {
+  const current = season === curSeason && ep.episode_number === curEpisode;
+  const p = Store.progress.get(`tv-${tvId}`);
+  const watched = p && p.season === season && p.episode === ep.episode_number && p.duration && p.time / p.duration > 0.85;
+  const href = `#/watch/tv/${tvId}/${season}/${ep.episode_number}`;
+  return `<a class="ep-item ${current ? 'current' : ''} ${watched ? 'watched' : ''}" href="${href}">
+    <div class="ep-thumb">
+      ${ep.still_path ? `<div class="card-ph shimmer"></div><img loading="lazy" decoding="async" src="${IMG_BACKDROP(ep.still_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.previousElementSibling.classList.remove('shimmer')">` : `<div class="card-ph"><i class="ph-play ph-sm">${icon('play')}</i></div>`}
+      <span class="ep-num">${String(ep.episode_number).padStart(2, '0')}</span>
+      ${watched ? '<span class="ep-done">✓</span>' : ''}
+    </div>
+    <div class="ep-info">
+      <div class="ep-t">${esc(ep.name || `Episode ${ep.episode_number}`)}</div>
+      <div class="ep-d">${ep.runtime ? esc(ep.runtime) + 'm · ' : ''}${esc(ep.air_date || '')}${ep.vote_average ? ' · ★ ' + Number(ep.vote_average).toFixed(1) : ''}</div>
+      <div class="ep-o">${esc(ep.overview || '')}</div>
+    </div>
+    ${current ? '<span class="ep-cur">Playing</span>' : `<span class="ep-go">${icon('play')}</span>`}
+  </a>`;
+}
 async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
   const seasons = (d.seasons || []).filter(s => s.season_number > 0 && s.episode_count > 0);
+  epSeasons = seasons;
+  buildEpOverlay(id, curSeason, curEpisode);
   const el = $('#watchEps'); if (!el || !seasons.length) { el?.remove(); return; }
   el.innerHTML = `<div class="detail-panel"><h3>${icon('tv')} Episodes</h3>
     <div class="season-tabs scrollbar-hide">${seasons.map(s => `<button class="chip ${s.season_number === curSeason ? 'active' : ''}" data-s="${s.season_number}">Season ${s.season_number}</button>`).join('')}</div>
@@ -827,7 +905,7 @@ async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
     row.innerHTML = data.episodes.map(ep => episodeCard(ep, id, n)).join('');
     if (n === curSeason) {
       const idx = data.episodes.findIndex(e => e.episode_number === curEpisode);
-      if (idx >= 0) row.children[idx]?.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
+      if (idx >= 0 && row.children[idx] && row.children[idx].scrollIntoView) row.children[idx].scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
     }
   };
   el.querySelector('.season-tabs').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) load(+b.dataset.s); });
