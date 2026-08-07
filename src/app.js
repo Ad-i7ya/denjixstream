@@ -901,7 +901,7 @@ async function renderTvSection(d, id) {
     <div class="row-wrap">
       <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
       <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
-      <div class="episode-row scrollbar-hide" id="epRow"><div class="skeleton" style="width:268px;height:190px"></div></div>
+      <div class="episode-row scrollbar-hide" id="epRow"><div class="skeleton" style="width:240px;height:170px"></div></div>
     </div></div>`;
   const loadSeason = async (n) => {
     seasonNum = n; $$('.season-tabs .chip').forEach(c => c.classList.toggle('active', +c.dataset.s === n));
@@ -1103,7 +1103,7 @@ async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
   const row = $('#watchEpRow');
   const load = async (n) => {
     $$('.season-tabs .chip', el).forEach(c => c.classList.toggle('active', +c.dataset.s === n));
-    row.innerHTML = '<div class="skeleton" style="width:268px;height:190px"></div>';
+    row.innerHTML = '<div class="skeleton" style="width:240px;height:170px"></div>';
     const data = await api(`/tv/${id}/season/${n}?language=en-US`).catch(() => null);
     if (!data) { row.innerHTML = ''; return; }
     row.innerHTML = data.episodes.map(ep => episodeCard(ep, id, n)).join('');
