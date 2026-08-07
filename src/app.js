@@ -104,6 +104,9 @@ const routes = {
   '/': viewHome,
   '/search': viewSearch,
   '/browse': viewBrowse,
+  '/browse/:id': viewBrowse,
+  '/categories': viewCategories,
+  '/categories/:type': viewCategories,
   '/movie/:id': viewDetail,
   '/tv/:id': viewDetail,
   '/watch/movie/:id': viewWatch,
@@ -113,7 +116,7 @@ const routes = {
   '/legal': viewLegal,
 };
 function matchRoute(hash) {
-  const path = hash.replace(/^#/, '') || '/';
+  const path = (hash.replace(/^#/, '') || '/').split('?')[0];
   for (const [pat, fn] of Object.entries(routes)) {
     const pp = pat.split('/').filter(Boolean), hp = path.split('/').filter(Boolean);
     if (pp.length !== hp.length) continue;
@@ -143,6 +146,7 @@ const sidebarHTML = `
     <a class="side-link" data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
     <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>
     <a class="side-link" data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
+    <a class="side-link" data-nav="categories" href="#/categories">${icon('film')}<span>Categories</span></a>
   </div>
   <div class="side-scroll">
     <div class="side-section">
@@ -202,7 +206,7 @@ document.addEventListener('click', (e) => { const sb = $('#sidebar'); if (sb.cla
 function setActiveNav() {
   const path = (location.hash || '#/').replace(/^#/, '') || '/';
   const key = path.split('/')[1] || 'home';
-  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'legal', 'home'].includes(key) ? key : '');
+  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'categories', 'legal', 'home'].includes(key) ? key : '');
   $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
 }
 
@@ -285,13 +289,52 @@ function heroBanner(m) {
 }
 
 /* ---------------- Row nav + auto-bind ---------------- */
+/* Manual rAF-driven slide: sets scrollLeft directly so it works in every browser
+   and can't be fought by scroll-snap or smooth-scroll quirks. */
+function slideRow(row, dir) {
+  const max = Math.max(0, row.scrollWidth - row.clientWidth);
+  const target = clamp(row.scrollLeft + dir * Math.max(240, row.clientWidth * 0.85), 0, max);
+  const start = row.scrollLeft, dist = target - start;
+  if (!dist) return;
+  const dur = 460, t0 = performance.now();
+  const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / dur);
+    row.scrollLeft = start + dist * ease(p);
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+/* Click-and-drag the row to slide it (like streamex / Netflix). */
+function makeRowDraggable(row) {
+  if (row.dataset.dragBound) return;
+  row.dataset.dragBound = '1';
+  let down = false, startX = 0, startL = 0, moved = false;
+  row.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    down = true; moved = false; startX = e.clientX; startL = row.scrollLeft;
+    row.classList.add('dragging');
+    try { row.setPointerCapture(e.pointerId); } catch {}
+  });
+  row.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 4) moved = true;
+    row.scrollLeft = startL - dx;
+  });
+  const end = () => { down = false; row.classList.remove('dragging'); };
+  row.addEventListener('pointerup', end);
+  row.addEventListener('pointercancel', end);
+  row.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+}
 function bindRowNavs() {
   $$('.row-wrap').forEach(wrap => {
     if (wrap.dataset.navBound) return;
     wrap.dataset.navBound = '1';
-    const row = $('.row', wrap); if (!row) return;
-    $('.row-nav.prev', wrap)?.addEventListener('click', () => row.scrollBy({ left: -row.clientWidth * 0.8, behavior: 'smooth' }));
-    $('.row-nav.next', wrap)?.addEventListener('click', () => row.scrollBy({ left: row.clientWidth * 0.8, behavior: 'smooth' }));
+    const row = $('.row, .episode-row', wrap); if (!row) return;
+    $('.row-nav.prev', wrap)?.addEventListener('click', () => slideRow(row, -1));
+    $('.row-nav.next', wrap)?.addEventListener('click', () => slideRow(row, 1));
+    makeRowDraggable(row);
   });
 }
 
@@ -325,8 +368,8 @@ async function viewHome() {
   const contRow = contItems.length ? `<section style="margin-bottom:22px">
     <div class="section-head"><h2 class="section-title">${icon('clock')} ${contTitle}</h2><a class="view-all" href="#/history">History →</a></div>
     <div class="row-wrap">
-      <button class="row-nav prev">${icon('chevL')}</button>
-      <button class="row-nav next">${icon('chevR')}</button>
+      <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
+      <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
       <div class="row scrollbar-hide">${contItems.map(continueCard).join('')}</div>
     </div>
   </section>` : '';
@@ -349,29 +392,76 @@ async function viewBrowse(params) {
   const q = parseQuery(location.hash.split('?')[1]);
   const sort = q.sort || 'popular';
   const genreId = q.genre || '';
+  const decade = /^\d{4}$/.test(q.decade || '') ? q.decade : '';
   const title = { movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse';
   const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
   const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['on_the_air', 'On The Air']];
   const sorts = type === 'movie' ? movieSorts : tvSorts;
-  main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${esc(title)}</h1>
-    <div class="filter-tabs">${sorts.map(s => `<button class="chip ${sort === s[0] ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${s[0]}${genreId ? '&genre=' + genreId : ''}'">${s[1]}</button>`).join('')}</div>
+  const qsExtra = `${genreId ? '&genre=' + genreId : ''}${decade ? '&decade=' + decade : ''}`;
+  main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${esc(title)}${decade ? ` <span class="muted" style="font-size:15px;font-weight:500">· ${decade}s</span>` : ''}</h1>
+    <div class="filter-tabs">${sorts.map(s => `<button class="chip ${sort === s[0] ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${s[0]}${qsExtra}'">${s[1]}</button>`).join('')}</div>
+    ${decade ? `<div class="filter-tabs"><a class="chip active" href="#/browse/${type}?decade=${decade}">${icon('calendar','inline')} ${decade}s</a><a class="chip" href="#/browse/${type}">✕ Clear decade</a></div>` : ''}
     <div id="genreChips" class="filter-tabs"></div>
     <div id="gridWrap">${SKELETON_GRID}</div>`;
   api(`/genre/${type}/list?language=en-US`).then(g => {
-    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}'">All</button>` +
-      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}'">${esc(x.name)}</button>`).join('');
-    if (!genreId) {
+    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}${decade ? '&decade=' + decade : ''}'">All</button>` +
+      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}${decade ? '&decade=' + decade : ''}'">${esc(x.name)}</button>`).join('');
+    if (!genreId && !decade) {
       const tiles = `<div class="genre-tiles">${g.genres.map(x => `<a class="genre-tile" href="#/browse/${type}?sort=${sort}&genre=${x.id}">${icon('film')} ${esc(x.name)}</a>`).join('')}</div>`;
       $('#gridWrap').insertAdjacentHTML('beforebegin', tiles);
     }
   }).catch(() => {});
   const items = await apiWrap((async () => {
-    if (genreId) return (await api(`/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sort === 'trending' ? 'popularity.desc' : sort === 'top_rated' ? 'vote_average.desc' : sort === 'now_playing' ? 'primary_release_date.desc' : sort === 'upcoming' ? 'primary_release_date.asc' : sort === 'on_the_air' ? 'first_air_date.desc' : 'popularity.desc'}`)).results;
+    const sortBy = sort === 'trending' ? 'popularity.desc' : sort === 'top_rated' ? 'vote_average.desc' : sort === 'now_playing' ? 'primary_release_date.desc' : sort === 'upcoming' ? 'primary_release_date.asc' : sort === 'on_the_air' ? 'first_air_date.desc' : 'popularity.desc';
+    if (genreId) {
+      let qs = `/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sortBy}`;
+      if (decade) qs += '&' + dateRange(type, decade);
+      return (await api(qs)).results;
+    }
+    if (decade) return (await api(`/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}`)).results;
     if (sort === 'trending') return (await api(`/trending/${type}/day?language=en-US`)).results;
     return (await api(`/${type}/${sort}?language=en-US`)).results;
   })());
   if (items) $('#gridWrap').innerHTML = `<div class="grid">${items.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`;
   bindWatchlistButtons();
+}
+
+/* ---------------- CATEGORIES PAGE ---------------- */
+function dateRange(type, decade) {
+  const df = type === 'movie' ? 'primary_release_date' : 'first_air_date';
+  const start = Number(decade);
+  return `${df}.lte=${start + 9}-12-31${start >= 1980 ? `&${df}.gte=${decade}-01-01` : ''}`;
+}
+const CAT_GRADS = [
+  'linear-gradient(135deg,#0a84ff,#5e5ce6)',
+  'linear-gradient(135deg,#ff375f,#ff9f0a)',
+  'linear-gradient(135deg,#30d158,#0a84ff)',
+  'linear-gradient(135deg,#ffd60a,#ff375f)',
+  'linear-gradient(135deg,#5e5ce6,#ff375f)',
+  'linear-gradient(135deg,#0a84ff,#30d158)',
+  'linear-gradient(135deg,#bf5af2,#0a84ff)',
+  'linear-gradient(135deg,#ff9f0a,#ff375f)',
+  'linear-gradient(135deg,#ff6482,#ff9f0a)',
+  'linear-gradient(135deg,#64d2ff,#5e5ce6)',
+];
+async function viewCategories(params) {
+  const type = params.type || 'movie';
+  main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${icon('browse','inline')} Categories</h1>
+    <div class="filter-tabs" id="catTabs">
+      <a class="chip ${type === 'movie' ? 'active' : ''}" href="#/categories/movie">${icon('movie','inline')} Movies</a>
+      <a class="chip ${type === 'tv' ? 'active' : ''}" href="#/categories/tv">${icon('tv','inline')} TV Shows</a>
+    </div>
+    <div id="catBody"><div class="skeleton" style="height:220px;border-radius:20px"></div></div>`;
+  const g = await api(`/genre/${type}/list?language=en-US`).catch(() => ({ genres: [] }));
+  const genres = g.genres || [];
+  const decades = [['2020', '2020s'], ['2010', '2010s'], ['2000', '2000s'], ['1990', '1990s'], ['1980', '1980s'], ['1970', '1970s & older']];
+  $('#catBody').innerHTML =
+    `<h2 class="section-title" style="margin-bottom:14px">${icon('film','inline')} Browse by genre</h2>` +
+    `<div class="cat-grid">${genres.map((x, i) => `<a class="cat-tile" style="background:${CAT_GRADS[i % CAT_GRADS.length]}" href="#/browse/${type}?genre=${x.id}" title="${esc(x.name)}"><span class="cat-name">${esc(x.name)}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
+    `<h2 class="section-title" style="margin:30px 0 14px">${icon('calendar','inline')} Browse by decade</h2>` +
+    `<div class="cat-grid cat-decades">${decades.map(([d, label]) => `<a class="cat-tile cat-decade" href="#/browse/${type}?decade=${d}"><span class="cat-name">${label}</span><span class="cat-arrow">${icon('chevR')}</span></a>`).join('')}</div>` +
+    `<h2 class="section-title" style="margin:30px 0 14px">${icon('sparkles','inline')} Quick picks</h2>` +
+    `<div class="filter-tabs">${[['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], type === 'movie' ? ['now_playing', 'Now Playing'] : ['on_the_air', 'On The Air']].map(s => `<a class="chip" href="#/browse/${type}?sort=${s[0]}">${s[1]}</a>`).join('')}</div>`;
 }
 
 async function viewSearch() {
@@ -461,8 +551,8 @@ async function renderTvSection(d, id) {
   el.innerHTML = `<div class="detail-panel"><h3>${icon('tv')} Episodes</h3>
     <div class="season-tabs scrollbar-hide">${seasons.map(s => `<button class="chip" data-s="${s.season_number}">Season ${s.season_number}</button>`).join('')}</div>
     <div class="row-wrap">
-      <button class="row-nav prev">${icon('chevL')}</button>
-      <button class="row-nav next">${icon('chevR')}</button>
+      <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
+      <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
       <div class="episode-row scrollbar-hide" id="epRow"><div class="skeleton" style="width:268px;height:190px"></div></div>
     </div></div>`;
   const loadSeason = async (n) => {
@@ -542,8 +632,8 @@ async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
   el.innerHTML = `<div class="detail-panel"><h3>${icon('tv')} Episodes</h3>
     <div class="season-tabs scrollbar-hide">${seasons.map(s => `<button class="chip ${s.season_number === curSeason ? 'active' : ''}" data-s="${s.season_number}">Season ${s.season_number}</button>`).join('')}</div>
     <div class="row-wrap">
-      <button class="row-nav prev">${icon('chevL')}</button>
-      <button class="row-nav next">${icon('chevR')}</button>
+      <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
+      <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
       <div class="episode-row scrollbar-hide" id="watchEpRow"></div>
     </div></div>`;
   const row = $('#watchEpRow');
