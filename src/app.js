@@ -200,7 +200,7 @@ const app = document.createElement('div'); app.className = 'app';
 const sidebarHTML = `
 <aside class="sidebar" id="sidebar">
   <div class="sb-resize" id="sbResize" title="Drag to resize"></div>
-  <div class="logo"><a href="#/" title="${esc(SITE_NAME)}">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a></div>
+  <div class="logo"><a href="#/" title="${esc(SITE_NAME)}">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a><span class="logo-tag" id="logoTag"></span></div>
   <div class="side-section">
     <a class="side-link" data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
     <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>      <a class="side-link" data-nav="browse" href="#/browse">${icon('browse')}<span>Browse</span></a>
@@ -256,7 +256,10 @@ const updateFloatLogo = () => {
 };
 window.addEventListener('scroll', updateFloatLogo, { passive: true });
 const main = $('#main');
-const footerNote = () => `<footer class="site-footer">
+const footerNote = () => {
+  const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
+  const chip = (d, i) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava"><img src="/avatars/${i === 0 ? 'kyren' : 'denji'}.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
+  return `<footer class="site-footer">
   <a class="foot-brand" href="#/">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>
   <nav class="foot-links" aria-label="Footer">
     <a href="#/">Home</a><a href="#/browse/movie">Movies</a><a href="#/browse/tv">TV Shows</a>
@@ -264,12 +267,13 @@ const footerNote = () => `<footer class="site-footer">
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
-    <a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava"><img src="/avatars/kyren.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">K</span><span>Kyren</span>${icon('telegram')}</a>
-    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava"><img src="/avatars/denji.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">D</span><span>Denji</span>${icon('telegram')}</a>
+    ${devs ? chip(devs[0], 0) + chip(devs[1], 1) : `<a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava"><img src="/avatars/kyren.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">K</span><span>Kyren</span>${icon('telegram')}</a>
+    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava"><img src="/avatars/denji.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">D</span><span>Denji</span>${icon('telegram')}</a>`}
   </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
 </footer>`;
+};
 
 /* Apple-style hamburger — opens the liquid-glass drawer on tablets/phones */
 $('#menuBtn').addEventListener('click', () => {
@@ -488,6 +492,7 @@ function stopHeroTrailer(hero) {
   if (s) s.classList.remove('playing');
 }
 async function playHeroTrailer(hero) {
+  if (siteCfg && siteCfg.heroTrailer === false) return;
   const slide = hero && $('.hero-slide.active', hero);
   if (!slide) return;
   const id = slide.dataset.id, med = slide.dataset.media;
@@ -861,6 +866,7 @@ async function viewCategories(params) {
 
 /* ---------------- ANIME PAGE ---------------- */
 async function viewAnime() {
+  if (siteCfg && siteCfg.anime === false) { main.innerHTML = `<div class="empty-state">${icon('sparkles')}<h3>Anime is disabled</h3><p class="muted">The owner has turned off this section from the admin panel.</p></div>`; return; }
   main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${icon('sparkles', 'inline')} Anime</h1>
     <div class="filter-tabs" id="animeTabs">
       <button class="chip active" data-aw="mix">All</button>
@@ -1030,10 +1036,11 @@ async function viewDetail(params) {
   if (d.number_of_seasons) meta.push(`<span>${d.number_of_seasons} seasons</span>`);
   if (d.status) meta.push(`<span>${esc(d.status)}</span>`);
   const wl = Store.watchlist.has(Number(id), type);
+  const showTr = trailer && !skipTrailer && (!siteCfg || siteCfg.heroTrailer !== false);
   main.innerHTML = `
-    <div class="detail-hero${trailer && !skipTrailer ? ' has-trailer' : ''}">
+    <div class="detail-hero${showTr ? ' has-trailer' : ''}">
       ${d.backdrop_path ? `<img class="backdrop" src="${IMG_HERO(d.backdrop_path)}" alt="">` : ''}
-      ${trailer && !skipTrailer ? `<div class="detail-trailer"><iframe src="${ytTrailer(trailer.key)}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1"></iframe></div>` : ''}
+      ${showTr ? `<div class="detail-trailer"><iframe src="${ytTrailer(trailer.key)}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1"></iframe></div>` : ''}
       <div class="shade"></div>
       <div class="content">
         <div class="poster">${d.poster_path ? `<img src="${IMG_POSTER(d.poster_path)}" alt="">` : ''}</div>
@@ -1450,7 +1457,7 @@ document.addEventListener('keydown', (e) => {
    No personal data beyond standard analytics (IP is stored server-side only). */
 function beacon(ev, extra = {}) {
   try {
-    const payload = { ev, page: location.hash || '/', ref: document.referrer ? String(document.referrer).slice(0, 300) : '', ...extra };
+    const payload = { ev, page: location.hash || '/', ref: document.referrer ? String(document.referrer).slice(0, 300) : '', scr: (window.screen && screen.width) ? screen.width + 'x' + screen.height : '', lang: (navigator.language || '').slice(0, 12), tz: String(Math.round(-new Date().getTimezoneOffset() / 60 * 2) / 2), ...extra };
     const body = JSON.stringify(payload);
     if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'application/json' }));
     else fetch('/api/beacon', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
@@ -1469,6 +1476,20 @@ function applySiteConfig() {
       $('#annClose', banner)?.addEventListener('click', () => banner.remove());
     }
   } else if (banner) banner.remove();
+  /* tagline under the sidebar logo (admin-driven) */
+  const tg = $('#logoTag');
+  if (tg) { const v = (cfg.tagline || '').trim(); tg.textContent = v; tg.style.display = v ? '' : 'none'; }
+  /* footer developer chips from the admin panel (applied after config loads) */
+  if (cfg.devs && cfg.devs.length) {
+    $$('.foot-devs').forEach(box => {
+      const chip = (d) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
+      box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${chip(cfg.devs[0])}${chip(cfg.devs[1])}`;
+    });
+  }
+  /* hide the anime entry points when the owner disables the section */
+  const animeOff = cfg.anime === false;
+  $$('[data-nav="anime"]').forEach(a => a.classList.toggle('hidden', animeOff));
+  $$('.foot-links a[href="#/anime"]').forEach(a => a.classList.toggle('hidden', animeOff));
   let mo = $('#maintOverlay');
   if (cfg.maintenance) {
     if (!mo) { mo = document.createElement('div'); mo.id = 'maintOverlay'; mo.className = 'maint-overlay'; document.body.appendChild(mo); }

@@ -138,10 +138,12 @@ async function streamHandler(request, url, env, ctx) {
    disabled from the panel). Concurrency may occasionally drop an event. */
 const UA_PARTS = (ua) => {
   const s = String(ua || '');
-  const os = /Android/.test(s) ? 'Android' : /iPhone|iPad|iPod/.test(s) ? 'iOS' : /Windows/.test(s) ? 'Windows' : /Mac OS X|Macintosh/.test(s) ? 'macOS' : /CrOS/.test(s) ? 'ChromeOS' : /Linux/.test(s) ? 'Linux' : 'Other';
-  const browser = /Edg\//.test(s) ? 'Edge' : /OPR\//.test(s) ? 'Opera' : /Firefox\//.test(s) ? 'Firefox' : /Chrome\//.test(s) ? 'Chrome' : /Safari\//.test(s) ? 'Safari' : 'Other';
-  const device = /iPad/.test(s) ? 'Tablet' : /iPhone|Android/.test(s) ? (/Mobile/.test(s) ? 'Phone' : 'Tablet') : 'Desktop';
-  return { os, browser, device };
+  const os = /Android/.test(s) ? 'Android' : /iPhone|iPod/.test(s) ? 'iOS' : /iPad/.test(s) ? 'iPadOS' : /Windows/.test(s) ? 'Windows' : /Mac OS X|Macintosh/.test(s) ? 'macOS' : /CrOS/.test(s) ? 'ChromeOS' : /Linux/.test(s) ? 'Linux' : 'Other';
+  const browser = /EdgA?\//.test(s) ? 'Edge' : /OPR\//.test(s) ? 'Opera' : /FxiOS\//.test(s) || /Firefox\//.test(s) ? 'Firefox' : /CriOS\//.test(s) ? 'Chrome' : /SamsungBrowser\//.test(s) ? 'Samsung Internet' : /YaBrowser\//.test(s) ? 'Yandex' : /UCBrowser\//.test(s) ? 'UC Browser' : /Chrome\//.test(s) ? 'Chrome' : /Safari\//.test(s) ? 'Safari' : 'Other';
+  const mVer = (re) => { const m = s.match(re); return m ? m[1].split('.')[0] : ''; };
+  const ver = mVer(/(?:Edg|OPR|Firefox|Chrome|Safari|CriOS|FxiOS|SamsungBrowser|YaBrowser)\/([\d.]+)/) || '';
+  const device = /iPad/.test(s) ? 'Tablet' : /iPhone/.test(s) ? 'Phone' : /Android/.test(s) ? (/Mobile/.test(s) ? 'Phone' : 'Tablet') : /Touch/.test(s) ? 'Tablet' : 'Desktop';
+  return { os, browser, device, ver };
 };
 const kvGet = async (kv, key, fallback) => { try { const v = await kv.get(key, 'json'); return v === null ? fallback : v; } catch (_) { return fallback; } };
 const kvPut = async (kv, key, val, ttlSeconds) => { try { await kv.put(key, JSON.stringify(val), ttlSeconds ? { expirationTtl: ttlSeconds } : undefined); } catch (_) {} };
@@ -149,7 +151,7 @@ const DAY_TTL = 365 * 86400;
 /* cfg is read on every beacon/siteconfig — cache per isolate for 30s */
 let cfgCache = { t: 0, v: null };
 async function siteConfig(env) {
-  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0' };
+  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0', tagline: null, devs: null, heroTrailer: true, anime: true };
   const kv = env.DENJIX_KV;
   if (!kv) return out;
   if (cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
@@ -159,6 +161,10 @@ async function siteConfig(env) {
   out.statsEnabled = m.statsEnabled !== false;
   if (Array.isArray(m.servers) && m.servers.length) out.servers = m.servers;
   out.serversRev = String(m.servers_ts || '0');
+  out.tagline = String(m.tagline || '').slice(0, 80) || null;
+  out.heroTrailer = m.heroTrailer !== false;
+  out.anime = m.anime !== false;
+  if (Array.isArray(m.devs)) out.devs = m.devs.slice(0, 6).map(d => ({ name: String(d.name || '').slice(0, 40), handle: String(d.handle || '').replace(/^@/, '').slice(0, 40) })).filter(d => d.name && d.handle);
   cfgCache = { t: Date.now(), v: out };
   return out;
 }
@@ -177,22 +183,28 @@ async function beaconHandler(request, env) {
   const evType = ['page', 'watch', 'search', 'visit', 'error'].includes(rawEv) ? rawEv : 'page';
   const ev = {
     t, ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 64),
-    dv: p.device, os: p.os, br: p.browser, co: (request.headers.get('cf-ipcountry') || '').slice(0, 8),
+    dv: p.device, os: p.os, br: p.browser, bv: p.ver, co: (request.headers.get('cf-ipcountry') || '').slice(0, 8),
     pg: String(body.page || '/').slice(0, 200), ev: evType,
     ti: String(body.title || '').slice(0, 200), q: String(body.q || '').slice(0, 120),
+    rf: String(body.ref || '').slice(0, 300), sc: String(body.scr || '').slice(0, 24), lg: String(body.lang || '').slice(0, 12), tz: String(body.tz || '').slice(0, 8),
   };
   const key = 'day:' + new Date(t).toISOString().slice(0, 10);
-  const blob = await kvGet(kv, key, { d: key.slice(4), n: 0, counts: { ev: {}, device: {}, os: {}, br: {}, co: {}, pg: {}, ti: {}, q: {} }, visitors: {}, events: [] });
-  const inc = (o, k) => { if (k) o[k] = (o[k] || 0) + 1; };
-  const c = blob.counts;
+  const blob = await kvGet(kv, key, { d: key.slice(4), n: 0, counts: { ev: {}, device: {}, os: {}, br: {}, co: {}, pg: {}, ti: {}, q: {}, sc: {}, lg: {} }, visitors: {}, events: [] });
+  const inc = (o, k) => { if (o && k) o[k] = (o[k] || 0) + 1; };
+  /* normalize counts so blobs written by older builds (missing sc/lg keys) never throw */
+  const c = blob.counts || (blob.counts = {});
+  ['ev', 'device', 'os', 'br', 'co', 'pg', 'ti', 'q', 'sc', 'lg'].forEach(k => { if (!c[k]) c[k] = {}; });
   blob.n += 1;
   inc(c.ev, ev.ev); inc(c.device, ev.dv); inc(c.os, ev.os); inc(c.br, ev.br); inc(c.co, ev.co);
   inc(c.pg, ev.pg);
   if (ev.ev === 'watch') inc(c.ti, ev.ti);
   if (ev.ev === 'search') inc(c.q, ev.q);
+  if (ev.sc) inc(c.sc, ev.sc); if (ev.lg) inc(c.lg, ev.lg);
   const v = blob.visitors[ev.ip] || { n: 0, first: t, last: t };
   v.n += 1; v.first = Math.min(v.first || t, t); v.last = Math.max(v.last || t, t);
-  if (!v.dv) v.dv = ev.dv; if (!v.os) v.os = ev.os; if (!v.br) v.br = ev.br; if (!v.co) v.co = ev.co;
+  /* latest activity wins — shared IPs show the device that used it last */
+  v.dv = ev.dv; v.os = ev.os; v.br = ev.br; if (p.ver) v.bv = p.ver; if (ev.co) v.co = ev.co;
+  if (ev.sc) v.sc = ev.sc; if (ev.lg) v.lg = ev.lg; if (ev.tz) v.tz = ev.tz; if (ev.rf) v.rf = ev.rf;
   blob.visitors[ev.ip] = v;
   if (blob.events.length < 1500) blob.events.push(ev);
   await kvPut(kv, key, blob, DAY_TTL);
