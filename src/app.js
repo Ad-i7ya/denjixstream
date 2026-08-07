@@ -152,15 +152,28 @@ const sidebarHTML = `
   </div>
 </nav>
 <div class="toast" id="toast"></div>`;
-document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
+app.innerHTML = sidebarHTML;
+document.body.prepend(app);
 const main = $('#main');
 const footerNote = () => `<div class="footer-disclaimer">This site does not store any files on the server. We only link to media which is hosted on 3rd party services. All trademarks and copyrights belong to their respective owners.</div>`;
 
 $('#collapseBtn').addEventListener('click', () => {
-  const sb = $('#sidebar'), btn = $('#collapseBtn'), el = document.querySelector('.app');
-  sb.classList.toggle('collapsed'); btn.classList.toggle('collapsed'); el.classList.toggle('sidebar-hidden');
-  btn.innerHTML = el.classList.contains('sidebar-hidden') ? icon('chevR') : icon('chevL');
+  const sb = $('#sidebar'), btn = $('#collapseBtn'), el = $('.app');
+  const hidden = sb.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed', hidden);
+  el.classList.toggle('sidebar-hidden', hidden);
+  btn.innerHTML = hidden ? icon('chevR') : icon('chevL');
+  try { localStorage.setItem('dx_sidebar', hidden ? '1' : '0'); } catch {}
 });
+/* restore persisted sidebar state (collapsed → content is full screen) */
+try {
+  if (localStorage.getItem('dx_sidebar') === '1') {
+    $('#sidebar').classList.add('collapsed');
+    $('.collapse-btn').classList.add('collapsed');
+    $('.app').classList.add('sidebar-hidden');
+    $('.collapse-btn').innerHTML = icon('chevR');
+  }
+} catch {}
 $('#moreBtn').addEventListener('click', () => { const sb = $('#sidebar'); sb.classList.toggle('open'); });
 document.addEventListener('click', (e) => { const sb = $('#sidebar'); if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('#moreBtn')) sb.classList.remove('open'); });
 
