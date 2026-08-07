@@ -506,12 +506,21 @@ function slideRow(row, dir) {
   const target = clamp(row.scrollLeft + dir * Math.max(240, row.clientWidth * 0.85), 0, max);
   const start = row.scrollLeft, dist = target - start;
   if (!dist) return;
-  const dur = 460, t0 = performance.now();
+  /* scroll-snap re-snaps on every frame and fights the per-frame scrollLeft
+     writes, making the glide sticky/jerky — switch it off for the glide and
+     restore it only when the LAST animation finishes (token guard for rapid
+     arrow clicks). */
+  const tok = (row._glideTok = (row._glideTok || 0) + 1);
+  row.style.scrollSnapType = 'none';
+  /* duration scales with distance — tiny nudges feel snappy, long scrolls glide */
+  const dur = clamp(280 + Math.abs(dist) * 0.45, 280, 700);
+  const t0 = performance.now();
   const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
   const step = (now) => {
     const p = Math.min(1, (now - t0) / dur);
     row.scrollLeft = start + dist * ease(p);
-    if (p < 1) requestAnimationFrame(step);
+    if (p < 1) { requestAnimationFrame(step); return; }
+    if (row._glideTok === tok) row.style.scrollSnapType = '';
   };
   requestAnimationFrame(step);
 }
