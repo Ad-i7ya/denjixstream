@@ -12,7 +12,7 @@ const IMG = 'https://image.tmdb.org/t/p';
 const IMG_BACKDROP = (p) => p ? `${IMG}/w1280${p}` : '';
 const IMG_POSTER   = (p) => p ? `${IMG}/w500${p}`  : '';
 const IMG_FACE     = (p) => p ? `${IMG}/w185${p}`  : '';
-const IMG_HERO     = (p) => p ? `${IMG}/original${p}` : ''; /* full-res — crisp on big screens, no visible pixels */
+const IMG_HERO     = (p) => p ? `${IMG}/${(window.innerWidth || 1200) < 768 ? 'w1280' : 'original'}${p}` : ''; /* full-res on desktop; w1280 on phones (crisp on small screens at ~1/4 the decode cost) */
 const IMG_CARD     = (p) => p ? `${IMG}/w780${p}`  : ''; /* plenty for card sizes, ~1/3 the bytes of w1280 */
 const fmtTime = (s) => { if (!isFinite(s)) return '0:00'; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 const year = (d) => (d || '').slice(0, 4);
@@ -150,6 +150,8 @@ let routeFirst = true;
 /* reduced-motion users get instant navigation — the CSS already zeroes the
    animations, but the JS veil timer needs its own gate too */
 const ROUTE_REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+/* smaller full-screen blur on phones — the transition veil is GPU-cheap there */
+const VEIL_BLUR = (window.innerWidth || 1200) < 768 ? 10 : 16;
 async function router() {
   const tok = ++routeTok;
   stopHeroTimer();
@@ -165,8 +167,8 @@ async function router() {
     main.classList.add('route-leaving');
     routeVeil.style.transition = 'opacity .16s ease, -webkit-backdrop-filter .16s ease, backdrop-filter .16s ease';
     routeVeil.style.opacity = '.92';
-    routeVeil.style.webkitBackdropFilter = 'blur(16px) saturate(1.15)';
-    routeVeil.style.backdropFilter = 'blur(16px) saturate(1.15)';
+    routeVeil.style.webkitBackdropFilter = `blur(${VEIL_BLUR}px) saturate(1.15)`;
+    routeVeil.style.backdropFilter = `blur(${VEIL_BLUR}px) saturate(1.15)`;
     await new Promise(r => setTimeout(r, 165));
     if (tok !== routeTok) return; /* a newer navigation superseded this one */
   }

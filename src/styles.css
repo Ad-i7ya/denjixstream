@@ -1293,6 +1293,9 @@ body.ep-open { overflow: hidden; }
 @media (max-width: 1024px) {
   .sidebar { transform: translateX(-105%); box-shadow: var(--shadow-glass); width: min(var(--sbw, 264px), 68vw); }
   .sidebar.open { transform: none; }
+  /* the contact button was hidden behind the floating bottom nav — give the
+     drawer bottom clearance so the glass chip always sits above it */
+  .sidebar { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
   /* the drawer PUSHES content aside — media is never covered or half-visible */
   .sidebar.open ~ .main-area { margin-left: min(var(--sbw, 264px), 68vw); }
   .sidebar.open ~ .float-logo { opacity: 0; pointer-events: none; }
@@ -1318,6 +1321,24 @@ body.ep-open { overflow: hidden; }
   .pc-row { padding: 8px 10px; }
   .pc-top { padding: 10px 12px; }
   .pl-top { padding: 10px 12px; }
+}
+
+/* ---------- Mobile performance (GPU-friendly glass) ---------- */
+@media (max-width: 1024px) {
+  /* the always-on fixed bars (bottom nav, float-logo, search overlay, sheets)
+     re-blur what's behind them on every scroll frame — lighter blur + less
+     saturation is visually near-identical here but dramatically cheaper */
+  :root {
+    --blur: blur(18px) saturate(150%);
+    --blur-soft: blur(13px) saturate(140%);
+  }
+  .sidebar {
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
+  }
+  /* hero ambience blobs: smaller + static on phones — a 420px blur(100px)
+     layer that transform-animates forever is the top mobile jank source */
+  .hero-slide .blob { width: 250px; height: 250px; filter: blur(64px); animation: none; opacity: .16; }
 }
 @media (max-width: 640px) {
   .hero { aspect-ratio: 16/6.8; }
