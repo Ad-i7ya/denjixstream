@@ -167,7 +167,7 @@ async function siteConfig(env, fresh = false) {
   if (!fresh && cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
   const m = await kvGet(kv, 'cfg', {});
   out.announcement = (m.announcement && m.announcement.text)
-    ? { text: String(m.announcement.text).slice(0, 240), enabled: !!m.announcement.enabled, kind: ['info', 'success', 'warning'].includes(m.announcement.kind) ? m.announcement.kind : 'info', link: safeLink(m.announcement.link) }
+    ? { text: String(m.announcement.text).slice(0, 240), enabled: !!m.announcement.enabled, kind: ['info', 'success', 'warning'].includes(m.announcement.kind) ? m.announcement.kind : 'info', link: safeLink(m.announcement.link), dur: Math.min(Math.max(Number(m.announcement.dur) || 0, 0), 9999), durUnit: ['m', 'h', 'd'].includes(m.announcement.durUnit) ? m.announcement.durUnit : 'h' }
     : null;
   out.maintenance = m.maintenance === true;
   out.statsEnabled = m.statsEnabled !== false;

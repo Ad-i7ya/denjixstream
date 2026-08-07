@@ -1486,6 +1486,7 @@ function applySiteConfig() {
         : `<span>${icon('sparkles', 'inline')} <em>${esc(ann.text)}</em></span>`;
       banner.innerHTML = inner + `<button id="annClose" aria-label="Dismiss announcement">${icon('x')}</button>`;
       $('#annClose', banner)?.addEventListener('click', () => {
+        if (banner._t) { clearTimeout(banner._t); banner._t = null; }
         banner.classList.add('dismissing');
         setTimeout(() => banner.remove(), 340);
       });
@@ -1494,7 +1495,17 @@ function applySiteConfig() {
       void banner.offsetHeight;
       banner.style.animation = '';
     }
+    /* auto-hide after the admin-set duration (0 = stays until dismissed) */
+    if (banner._t) { clearTimeout(banner._t); banner._t = null; }
+    const mult = ann.durUnit === 'm' ? 60000 : ann.durUnit === 'd' ? 86400000 : 3600000;
+    const durMs = (Number(ann.dur) || 0) * mult;
+    if (durMs > 0) {
+      banner._t = setTimeout(() => {
+        if (banner && banner.isConnected) { banner.classList.add('dismissing'); setTimeout(() => banner.remove(), 340); }
+      }, durMs);
+    }
   } else if (banner && !banner.classList.contains('dismissing')) {
+    if (banner._t) { clearTimeout(banner._t); banner._t = null; }
     banner.classList.add('dismissing');
     setTimeout(() => banner.remove(), 340);
   }
