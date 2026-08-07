@@ -280,6 +280,29 @@ aurora.id = 'aurora';
 aurora.setAttribute('aria-hidden', 'true');
 aurora.innerHTML = '<i class="au a1"></i><i class="au a2"></i><i class="au a3"></i>';
 document.body.appendChild(aurora);
+/* subtle scroll parallax — the fixed glow field translates a small fraction of
+   the scroll offset (opposite direction), so it drifts behind the content like
+   a background layer while you scroll. Transform-only + rAF-throttled (same
+   pattern as the floating logo), clamped so it can never reach the oversized
+   container's edges. Skipped on touch (native scroll feel, phone perf budget)
+   and for reduced-motion users (their aurora is frozen anyway). */
+(function initAuroraParallax() {
+  if (!aurora || !window.matchMedia) return;
+  if (!window.matchMedia('(pointer: fine)').matches) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const yPos = () => window.scrollY || document.documentElement.scrollTop;
+  let pRaf = 0;
+  const apply = () => {
+    pRaf = 0;
+    /* ~5% of scroll, capped at a quarter viewport height — the container has
+       30vh of slack top/bottom, so the field never uncovers an edge */
+    const maxShift = Math.round(window.innerHeight * 0.25);
+    const y = clamp(-yPos() * 0.05, -maxShift, maxShift);
+    aurora.style.transform = `translate3d(0, ${y}px, 0)`;
+  };
+  window.addEventListener('scroll', () => { if (!pRaf) pRaf = requestAnimationFrame(apply); }, { passive: true });
+  apply();
+})();
 let routeTok = 0;
 /* the floating home chip is redundant at the very top (the sidebar and mobile
    nav already have Home buttons there) — it stays tucked away until the user

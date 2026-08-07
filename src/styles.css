@@ -219,24 +219,32 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
    huge soft radial-gradient blobs drift on transform only (compositor,
    no filter blur) so the animated depth costs ~nothing on any device. */
 #aurora {
-  position: fixed; inset: 0; z-index: -1; overflow: hidden;
-  pointer-events: none;
+  /* oversized so the subtle scroll parallax translate can never expose its
+     edges (container always covers the viewport even when shifted) */
+  position: fixed; top: -30vh; right: -12vw; bottom: -30vh; left: -12vw;
+  z-index: -1; overflow: hidden; pointer-events: none;
 }
 #aurora .au {
   position: absolute; border-radius: 50%; opacity: .5;
 }
+/* blob offsets compensate for the oversized container (top/bottom -30vh,
+   left/right -12vw) so the glow keeps its original viewport-relative
+   composition — same visual placement as before the parallax slack */
 #aurora .a1 {
-  width: 62vmax; height: 62vmax; top: -16vmax; left: -12vmax;
+  width: 62vmax; height: 62vmax;
+  top: calc(-16vmax + 30vh); left: calc(-12vmax + 12vw);
   background: radial-gradient(circle at 38% 32%, rgba(10,132,255,.30), transparent 62%);
   animation: aurDrift1 64s ease-in-out infinite alternate;
 }
 #aurora .a2 {
-  width: 70vmax; height: 70vmax; top: -10vmax; right: -20vmax;
+  width: 70vmax; height: 70vmax;
+  top: calc(-10vmax + 30vh); right: calc(-20vmax + 12vw);
   background: radial-gradient(circle at 55% 40%, rgba(94,92,230,.26), transparent 62%);
   animation: aurDrift2 82s ease-in-out infinite alternate;
 }
 #aurora .a3 {
-  width: 64vmax; height: 64vmax; bottom: -24vmax; left: 16vmax;
+  width: 64vmax; height: 64vmax;
+  bottom: calc(-24vmax + 30vh); left: calc(16vmax + 12vw);
   background: radial-gradient(circle at 45% 55%, rgba(191,90,242,.22), transparent 62%);
   animation: aurDrift3 96s ease-in-out infinite alternate;
 }
