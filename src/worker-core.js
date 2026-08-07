@@ -192,7 +192,7 @@ async function beaconHandler(request, env) {
   if (ev.ev === 'search') inc(c.q, ev.q);
   const v = blob.visitors[ev.ip] || { n: 0, first: t, last: t };
   v.n += 1; v.first = Math.min(v.first || t, t); v.last = Math.max(v.last || t, t);
-  if (!v.dv) v.dv = ev.dv; if (!v.os) v.os = ev.os; if (!v.co) v.co = ev.co;
+  if (!v.dv) v.dv = ev.dv; if (!v.os) v.os = ev.os; if (!v.br) v.br = ev.br; if (!v.co) v.co = ev.co;
   blob.visitors[ev.ip] = v;
   if (blob.events.length < 1500) blob.events.push(ev);
   await kvPut(kv, key, blob, DAY_TTL);
