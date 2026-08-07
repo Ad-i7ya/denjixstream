@@ -721,7 +721,7 @@ async function viewBrowse(params) {
   const buildPath = (p) => {
     const sortBy = sort === 'trending' ? 'popularity.desc' : sort === 'top_rated' ? 'vote_average.desc' : sort === 'now_playing' ? 'primary_release_date.desc' : sort === 'upcoming' ? 'primary_release_date.asc' : sort === 'on_the_air' ? 'first_air_date.desc' : 'popularity.desc';
     const pg = `&page=${p}`;
-    if (anime) return `/discover/${type}?language=en-US&with_original_language=ja&with_genres=16&sort_by=${sortBy}${pg}`;
+    if (anime) return `/discover/${type}?language=en-US&with_original_language=ja&with_genres=16${genreId ? ',' + genreId : ''}&sort_by=${sortBy}${pg}`;
     if (genreId) return `/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sortBy}${decade ? '&' + dateRange(type, decade) : ''}${pg}`;
     if (decade) return `/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}${pg}`;
     if (sort === 'revenue') return `/discover/${type}?language=en-US&sort_by=revenue.desc${pg}`;
@@ -825,19 +825,56 @@ async function viewAnime() {
       <button class="chip" data-aw="movies">Movies</button>
     </div>
     <div id="animeBody">${SKELETON_ROW}${SKELETON_ROW}${SKELETON_GRID}</div>`;
+  /* Japanese animation discovery helpers */
+  const JA = 'with_original_language=ja&with_genres=16';
+  const tvD = (extra) => `/discover/tv?language=en-US&${JA}&${extra || 'sort_by=popularity.desc'}&page=1`;
+  const mvD = (extra) => `/discover/movie?language=en-US&${JA}&${extra || 'sort_by=popularity.desc'}&page=1`;
+  const genreD = (id) => tvD(`with_genres=${id}&sort_by=popularity.desc`);
   const load = async (aw) => {
     const body = $('#animeBody');
     body.innerHTML = SKELETON_ROW + SKELETON_ROW + SKELETON_GRID;
-    const [series, movies, top] = await Promise.all([
-      api('/discover/tv?language=en-US&with_original_language=ja&with_genres=16&sort_by=popularity.desc&page=1').then(r => r.results).catch(() => []),
-      api('/discover/movie?language=en-US&with_original_language=ja&with_genres=16&sort_by=popularity.desc&page=1').then(r => r.results).catch(() => []),
-      api('/discover/tv?language=en-US&with_original_language=ja&with_genres=16&sort_by=vote_average.desc&vote_count.gte=200&page=1').then(r => r.results).catch(() => []),
+    const today = new Date().toISOString().slice(0, 10);
+    const yearStart = new Date().getFullYear() + '-01-01';
+    const [series, movies, top, airing, fresh, action, fantasy, scifi, romance, comedy, drama, sports, mystery, horror, upcoming] = await Promise.all([
+      api(tvD()).then(r => r.results).catch(() => []),
+      api(mvD()).then(r => r.results).catch(() => []),
+      api(tvD('sort_by=vote_average.desc&vote_count.gte=200')).then(r => r.results).catch(() => []),
+      api(tvD('with_status=Returning%20Series&sort_by=popularity.desc')).then(r => r.results).catch(() => []),
+      api(tvD(`first_air_date.gte=${yearStart}&sort_by=first_air_date.desc`)).then(r => r.results).catch(() => []),
+      api(genreD(28)).then(r => r.results).catch(() => []),
+      api(genreD(14)).then(r => r.results).catch(() => []),
+      api(genreD(878)).then(r => r.results).catch(() => []),
+      api(genreD(10749)).then(r => r.results).catch(() => []),
+      api(genreD(35)).then(r => r.results).catch(() => []),
+      api(genreD(18)).then(r => r.results).catch(() => []),
+      api(genreD(9805)).then(r => r.results).catch(() => []),
+      api(genreD(9648)).then(r => r.results).catch(() => []),
+      api(genreD(27)).then(r => r.results).catch(() => []),
+      api(mvD(`primary_release_date.gte=${today}&sort_by=popularity.desc`)).then(r => r.results).catch(() => []),
     ]);
+    const tv = (m) => ({ ...m, media_type: 'tv' });
+    const mv = (m) => ({ ...m, media_type: 'movie' });
     const rows = [];
-    if (aw !== 'movies') rows.push(rowSection('Trending Anime Series', series.map(m => ({ ...m, media_type: 'tv' })), '#/browse/tv?anime=1'));
-    if (aw !== 'series') rows.push(rowSection('Anime Movies', movies.map(m => ({ ...m, media_type: 'movie' })), '#/browse/movie?anime=1'));
-    rows.push(gridSection('Top Rated Anime', top.slice(0, 10).map(m => ({ ...m, media_type: 'tv' })), '#/browse/tv?sort=top_rated&anime=1'));
-    body.innerHTML = rows.join('') + footerNote();
+    if (aw !== 'movies') {
+      rows.push(rowSection('Trending Anime Series', series.map(tv), '#/browse/tv?anime=1'));
+      rows.push(rowSection('Currently Airing', airing.map(tv), '#/browse/tv?anime=1&sort=on_the_air'));
+      rows.push(gridSection('New Anime This Year', fresh.slice(0, 10).map(tv), '#/browse/tv?anime=1'));
+      rows.push(gridSection('Top Rated Anime', top.slice(0, 10).map(tv), '#/browse/tv?anime=1&sort=top_rated'));
+      rows.push(gridSection('Action Anime', action.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=28'));
+      rows.push(gridSection('Fantasy Anime', fantasy.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=14'));
+      rows.push(gridSection('Sci-Fi Anime', scifi.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=878'));
+      rows.push(gridSection('Romance Anime', romance.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=10749'));
+      rows.push(gridSection('Comedy Anime', comedy.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=35'));
+      rows.push(gridSection('Drama Anime', drama.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=18'));
+      rows.push(gridSection('Sports Anime', sports.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=9805'));
+      rows.push(gridSection('Mystery Anime', mystery.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=9648'));
+      rows.push(gridSection('Horror Anime', horror.slice(0, 10).map(tv), '#/browse/tv?anime=1&genre=27'));
+    }
+    if (aw !== 'series') {
+      rows.push(rowSection('Anime Movies', movies.map(mv), '#/browse/movie?anime=1'));
+      rows.push(rowSection('Upcoming Anime Movies', upcoming.map(mv), '#/browse/movie?anime=1&sort=upcoming'));
+    }
+    body.innerHTML = (rows.length ? rows.join('') : `<div class="empty-state">${icon('sparkles')}<h3>Nothing here right now</h3><p class="muted">The anime feed could not be loaded — try again in a moment.</p></div>`) + footerNote();
     bindWatchlistButtons();
   };
   $('#animeTabs').addEventListener('click', e => {
