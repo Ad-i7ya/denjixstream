@@ -406,7 +406,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   transition: opacity 1s var(--ease-smooth), visibility 1s;
   z-index: 1;
 }
-.hero-slide.active { opacity: 1; visibility: visible; z-index: 2; }
+.hero-slide.active { opacity: 1; visibility: visible; z-index: 2; will-change: opacity; }
 /* Netflix-style hover trailer — covers the artwork, content stays on top */
 .hero-trailer {
   position: absolute; inset: 0; z-index: 1;
@@ -433,9 +433,10 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .hero-slide.playing .backdrop { animation: none; opacity: 0; transition: opacity .5s; }
 .hero-slide .backdrop {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  animation: heroZoom 7s var(--ease-smooth) both;
+  /* only the visible slide zooms — hidden slides must idle their layers */
+  animation: none;
 }
-.hero-slide.active .backdrop { animation: heroZoom 8s var(--ease-smooth) both; }
+.hero-slide.active .backdrop { animation: heroZoom 8s var(--ease-smooth) both; will-change: transform; }
 @keyframes heroZoom { from { transform: scale(1.06); } to { transform: scale(1); } }
 .hero-slide .shade {
   position: absolute; inset: 0;
@@ -446,8 +447,12 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .hero-slide .blob {
   position: absolute; width: 420px; height: 420px; border-radius: 50%;
   filter: blur(100px); opacity: .22; pointer-events: none;
-  animation: blobFloat 16s ease-in-out infinite alternate;
+  /* two 420px blurred circles re-rasterizing every frame is the single most
+     expensive effect on the page — only the VISIBLE slide's blobs may drift,
+     invisible slides idle (identical visuals, fraction of the GPU cost) */
+  animation: none;
 }
+.hero-slide.active .blob { animation: blobFloat 16s ease-in-out infinite alternate; }
 .hero-slide .blob.b1 { background: #0a84ff; top: -140px; right: 8%; }
 .hero-slide .blob.b2 { background: #5e5ce6; bottom: -160px; right: 40%; animation-delay: -7s; }
 @keyframes blobFloat {
@@ -1660,4 +1665,25 @@ body.ep-open { overflow: hidden; }
   .hero-slide.active .blob { animation: blobFloat 16s ease-in-out infinite alternate; }
   /* lighter route veil while swapping pages */
   #routeVeil { -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1); }
+}
+
+/* ---------- Render-on-demand: offscreen rows/grids skip layout + paint ----------
+   Long pages (home has many category rows, browse has grids, watch has panels)
+   get content-visibility:auto so anything below the fold costs almost nothing
+   until it scrolls into view. contain-intrinsic-size reserves a stable height,
+   so the scrollbar never jumps while loading. Effects are untouched — rows
+   animate exactly as before the moment they become visible. */
+#main > section,
+#main > .grid,
+.detail-panel,
+.site-footer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
+}
+.site-footer { contain-intrinsic-size: auto 210px; }
+/* the watch page's episode list + cast rows sit inside a panel — same win */
+.detail-panel .episode-row,
+.detail-panel .cast-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
 }

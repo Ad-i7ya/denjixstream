@@ -270,11 +270,74 @@ let routeTok = 0;
    nav already have Home buttons there) — it stays tucked away until the user
    scrolls down, then pops out so there is always a way back home */
 const floatLogo = $('.float-logo');
+/* rAF-throttled: scroll events fire up to 60-120×/s on low-end phones — batch
+   the class toggle to one style write per frame instead of one per event */
+let logoRaf = 0;
 const updateFloatLogo = () => {
-  if (!floatLogo) return;
-  floatLogo.classList.toggle('scrolled', (window.scrollY || document.documentElement.scrollTop) <= 24);
+  if (logoRaf) return;
+  logoRaf = requestAnimationFrame(() => {
+    logoRaf = 0;
+    if (!floatLogo) return;
+    floatLogo.classList.toggle('scrolled', (window.scrollY || document.documentElement.scrollTop) <= 24);
+  });
 };
 window.addEventListener('scroll', updateFloatLogo, { passive: true });
+/* ---------------- Liquid scroll (Apple-smooth glide) ----------------
+   Mouse wheels arrive in chunky ~100px steps — this eases the page toward the
+   wheeled position at a ~1.2× reach with a decelerating glide, so scrolling
+   feels long, weighted and buttery instead of step-jumpy. Native touch
+   (phones/tablets) already glides with the OS, and reduced-motion users keep
+   untouched native scrolling. Inner scrollable panels (episode drawer, sidebar
+   menu, search popup, modals) keep their own native wheel scrolling — the
+   page only takes over when the wheel lands on plain content. */
+function initSmoothScroll() {
+  if (!window.matchMedia) return;
+  if (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const yPos = () => window.scrollY || document.documentElement.scrollTop;
+  const maxY = () => Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight);
+  /* walk up: if the wheel landed on something that scrolls natively
+     (drawer, menu, popup, modal list), let the browser handle it */
+  const scrollableAncestor = (el) => {
+    for (let n = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 4) {
+        const oy = getComputedStyle(n).overflowY;
+        if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return n;
+      }
+    }
+    return null;
+  };
+  let target = 0, raf = 0, gliding = false, lastWritten = -1;
+  const step = () => {
+    raf = 0;
+    if (!gliding) return;
+    const real = yPos();
+    if (Math.abs(target - real) < 0.6) { gliding = false; return; }
+    const cur = real + (target - real) * 0.12; /* 12%/frame → ~350ms weighted glide */
+    lastWritten = cur;
+    window.scrollTo(0, cur);
+    raf = requestAnimationFrame(step);
+  };
+  /* an external scroll (scrollbar drag, keyboard, back-restore) ends the glide.
+     Browser scroll events from our own scrollTo arrive async — compare against
+     the last position WE wrote instead of a racy flag: the echo of our own
+     scrollTo always matches lastWritten, anything else is an external jump. */
+  window.addEventListener('scroll', () => {
+    if (!gliding) return;
+    const real = yPos();
+    if (Math.abs(real - lastWritten) > 1.5) { target = real; gliding = false; }
+  }, { passive: true });
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) return; /* pinch-zoom passes through */
+    if (scrollableAncestor(e.target)) return;
+    e.preventDefault();
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16; else if (e.deltaMode === 2) dy *= window.innerHeight;
+    if (!gliding) target = yPos();
+    gliding = true;
+    target = Math.max(0, Math.min(maxY(), target + dy * 1.2));
+    if (!raf) raf = requestAnimationFrame(step);
+  }, { passive: false });
+}
 const main = $('#main');
 /* one shared dev chip — always carries the Telegram profile photo. The avatar
    file is picked from the handle so reordered panel devs never swap faces. */
@@ -709,11 +772,23 @@ function bindRowNavs() {
        deltaX guard would also swallow vertical page scroll on diagonal
        trackpad swipes. Phones switch rows to overflow-x:auto + touch swipe. */
     /* keep arrows honest as the row scrolls (also after slideRow animation) */
-    row.addEventListener('scroll', () => updateRowArrows(wrap, row), { passive: true });
+    row.addEventListener('scroll', () => { if (wrap._vis) updateRowArrows(wrap, row); }, { passive: true });
     rowData.push(row);
-    const upd = debounce(() => updateRowArrows(wrap, row), 60);
+    const upd = debounce(() => { if (wrap._vis) updateRowArrows(wrap, row); }, 60);
     new MutationObserver(upd).observe(row, { childList: true, subtree: true });
-    updateRowArrows(wrap, row);
+    /* compute arrow states lazily — reading scrollWidth below the fold would
+       force content-visibility sections to render, defeating render-on-demand.
+       Arrows refresh the moment the row nears the viewport instead. */
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((ents) => ents.forEach(en => {
+        wrap._vis = en.isIntersecting;
+        if (en.isIntersecting) updateRowArrows(wrap, row);
+      }), { rootMargin: '240px' });
+      io.observe(wrap);
+    } else {
+      wrap._vis = true;
+      updateRowArrows(wrap, row);
+    }
   });
 }
 
@@ -1835,6 +1910,7 @@ window.addEventListener('popup', (e) => {
   e.preventDefault && e.preventDefault();
 });
 function boot() {
+  initSmoothScroll();
   buildSearchPopup();
   new MutationObserver(() => bindRowNavs()).observe(main, { childList: true, subtree: true });
   pauseShimmerOffscreen();
