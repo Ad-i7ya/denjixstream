@@ -211,7 +211,61 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
   min-width: 0; max-width: 100%; overflow-x: hidden; overflow-x: clip;
   transition: margin-left .45s var(--ease-smooth);
   min-height: 100vh; position: relative;
-  background: linear-gradient(180deg, var(--bg-grad-top) 0%, var(--bg) 45%, #030305 100%);
+  /* slightly translucent so the ambient aurora behind it glows through —
+     dark enough to keep text contrast, transparent enough for depth */
+  background: linear-gradient(180deg, rgba(14,14,20,.82) 0%, rgba(6,6,10,.9) 45%, rgba(3,3,5,.97) 100%);
+}
+/* Ambient aurora — fixed backdrop layer behind everything (z -1). Three
+   huge soft radial-gradient blobs drift on transform only (compositor,
+   no filter blur) so the animated depth costs ~nothing on any device. */
+#aurora {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden;
+  pointer-events: none;
+}
+#aurora .au {
+  position: absolute; border-radius: 50%; opacity: .5;
+}
+#aurora .a1 {
+  width: 62vmax; height: 62vmax; top: -16vmax; left: -12vmax;
+  background: radial-gradient(circle at 38% 32%, rgba(10,132,255,.30), transparent 62%);
+  animation: aurDrift1 64s ease-in-out infinite alternate;
+}
+#aurora .a2 {
+  width: 70vmax; height: 70vmax; top: -10vmax; right: -20vmax;
+  background: radial-gradient(circle at 55% 40%, rgba(94,92,230,.26), transparent 62%);
+  animation: aurDrift2 82s ease-in-out infinite alternate;
+}
+#aurora .a3 {
+  width: 64vmax; height: 64vmax; bottom: -24vmax; left: 16vmax;
+  background: radial-gradient(circle at 45% 55%, rgba(191,90,242,.22), transparent 62%);
+  animation: aurDrift3 96s ease-in-out infinite alternate;
+}
+/* reduced-motion users get a frozen still (explicit — the global override
+   also covers it, this just makes the intent obvious) */
+@media (prefers-reduced-motion: reduce) {
+  #aurora .au { animation: none !important; }
+}
+@keyframes aurDrift1 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(7vw, 5vh, 0) scale(1.14); }
+}
+@keyframes aurDrift2 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-6vw, 8vh, 0) scale(1.12); }
+}
+@keyframes aurDrift3 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(5vw, -7vh, 0) scale(1.16); }
+}
+/* phones: keep the depth but quiet — smaller blobs + one dropped entirely
+   (62-70vmax layers cost real GPU raster memory at 2-3x DPR; shrinking beats
+   opacity alone), slower drift */
+@media (max-width: 768px) {
+  #aurora .au { opacity: .3; }
+  #aurora .a1, #aurora .a2 { width: 42vmax; height: 42vmax; }
+  #aurora .a3 { display: none; }
+  #aurora .a1 { animation-duration: 90s; }
+  #aurora .a2 { animation-duration: 110s; }
 }
 /* Floating logo chip — always visible so every page has a home button */
 .float-logo {

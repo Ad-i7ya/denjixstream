@@ -270,6 +270,16 @@ document.body.prepend(app);
 const routeVeil = document.createElement('div');
 routeVeil.id = 'routeVeil';
 document.body.appendChild(routeVeil);
+/* ambient aurora — three huge soft gradient blobs drift very slowly behind
+   the content (z -1, pointer-events none) for depth. Pure transform
+   animation of radial-gradients: compositor-only, no filter blur, so it
+   costs ~nothing while the glass sidebar and translucent panels pick up a
+   faint blue/indigo/violet wash. Reduced-motion users get a frozen still. */
+const aurora = document.createElement('div');
+aurora.id = 'aurora';
+aurora.setAttribute('aria-hidden', 'true');
+aurora.innerHTML = '<i class="au a1"></i><i class="au a2"></i><i class="au a3"></i>';
+document.body.appendChild(aurora);
 let routeTok = 0;
 /* the floating home chip is redundant at the very top (the sidebar and mobile
    nav already have Home buttons there) — it stays tucked away until the user
