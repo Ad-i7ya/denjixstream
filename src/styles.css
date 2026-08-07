@@ -62,16 +62,24 @@ img { display: block; }
 /* Sidebar — layered liquid glass, draggable width (Apple drawer) */
 .sidebar {
   width: var(--sbw, 264px);
-  background: linear-gradient(180deg, rgba(28, 28, 36, 0.55), rgba(16, 16, 22, 0.45));
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-  border-right: 1px solid var(--glass-border);
+  background:
+    radial-gradient(130% 55% at 15% 0%, rgba(255,255,255,.14), rgba(255,255,255,0) 52%),
+    linear-gradient(180deg, rgba(40,40,52,.52), rgba(15,15,21,.44));
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  backdrop-filter: blur(36px) saturate(190%);
+  border-right: 1px solid rgba(255,255,255,.16);
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
   display: flex; flex-direction: column;
   padding: 30px 10px 12px;
   transition: transform .45s var(--ease-smooth), background .3s;
   overflow: hidden;
-  box-shadow: inset -1px 0 0 rgba(255,255,255,.06), 20px 0 60px rgba(0,0,0,.35);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(255,255,255,.06), 24px 0 70px rgba(0,0,0,.42);
+}
+/* soft diagonal sheen across the frosted pane */
+.sidebar::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 38%);
+  opacity: .65;
 }
 .sidebar.collapsed { transform: translateX(calc(-1 * var(--sbw, 264px))); }
 /* drag handle on the sidebar's right edge */
@@ -107,12 +115,18 @@ body.resizing * { cursor: col-resize !important; }
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
 .side-section {
-  background: linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.05));
-  border: 1px solid var(--glass-border);
+  position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.17);
   border-radius: var(--radius-sm);
   padding: 10px; display: flex; flex-direction: column; gap: 4px;
   margin-bottom: 12px;
-  box-shadow: var(--highlight-inset), 0 6px 20px rgba(0,0,0,.25);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 8px 26px rgba(0,0,0,.28);
+}
+/* glinting top edge of each glass card */
+.side-section::before {
+  content: ''; position: absolute; top: 0; left: 12px; right: 12px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
 }
 .side-label { font-size: 10.5px; letter-spacing: .14em; color: var(--text-muted); padding: 2px 8px 5px; font-weight: 600; }
 .side-link {
@@ -123,8 +137,12 @@ body.resizing * { cursor: col-resize !important; }
   white-space: nowrap;
 }
 .side-link svg { width: 19px; height: 19px; flex-shrink: 0; opacity: .85; }
-.side-link:hover { color: #fff; background: rgba(255,255,255,.09); transform: translateX(2px); }
-.side-link.active { background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.1)); color: #fff; box-shadow: var(--highlight-inset); }
+.side-link:hover { color: #fff; background: rgba(255,255,255,.13); transform: translateX(2px); }
+.side-link.active {
+  background: linear-gradient(180deg, rgba(10,132,255,.42), rgba(10,132,255,.26));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 4px 18px rgba(10,132,255,.38);
+}
 .side-scroll { overflow-y: auto; flex: 1; min-height: 0; }
 
 .collapse-btn {
@@ -161,6 +179,26 @@ body.resizing * { cursor: col-resize !important; }
 .float-logo:hover { transform: scale(1.04); background: rgba(30,30,40,.8); }
 .float-logo .logo-mark { width: 28px; height: 28px; }
 .float-logo .logo-word { font-size: 17px; }
+.float-logo { transition: transform .3s var(--ease-spring), background .3s, opacity .3s; }
+
+/* Apple-style hamburger — opens the liquid-glass drawer (tablets/phones only) */
+.menu-btn {
+  position: fixed; top: 14px; left: 14px; z-index: 56;
+  width: 42px; height: 42px; border-radius: 50%;
+  display: none; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: rgba(20,20,28,.6);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass), var(--highlight-inset);
+  cursor: pointer; transition: transform .3s var(--ease-spring), background .3s;
+}
+.menu-btn span { display: block; width: 17px; height: 2px; border-radius: 2px; background: #fff; transition: transform .3s var(--ease-spring), opacity .3s; }
+.menu-btn:hover { transform: scale(1.06); background: rgba(30,30,40,.85); }
+.menu-btn:active { transform: scale(.94); }
+/* drawer open → burger morphs into a close ✕ */
+.sidebar.open ~ .menu-btn span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.sidebar.open ~ .menu-btn span:nth-child(2) { opacity: 0; }
+.sidebar.open ~ .menu-btn span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 .app.sidebar-hidden .float-logo { display: flex; }
 .app.sidebar-hidden .main-scroll { padding-top: 26px; }
 .app.sidebar-hidden .main-area { margin-left: 0; }
@@ -1059,12 +1097,16 @@ body.ep-open { overflow: hidden; }
   .card.backdrop { width: 230px; }
 }
 @media (max-width: 1024px) {
-  .sidebar { transform: translateX(-105%); box-shadow: var(--shadow-glass); }
+  .sidebar { transform: translateX(-105%); box-shadow: var(--shadow-glass); width: min(var(--sbw, 264px), 68vw); }
   .sidebar.open { transform: none; }
+  /* the drawer PUSHES content aside — media is never covered or half-visible */
+  .sidebar.open ~ .main-area { margin-left: min(var(--sbw, 264px), 68vw); }
+  .sidebar.open ~ .float-logo { opacity: 0; pointer-events: none; }
   .collapse-btn { display: none; }
   .main-area { margin-left: 0; }
   .mobile-nav { display: block; }
-  .float-logo { display: flex; }
+  .menu-btn { display: flex; }
+  .float-logo { display: flex; left: 58px; }
   .main-scroll { padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
   .hero { aspect-ratio: 16/7.2; border-radius: 22px; }
   .hero-slide .content { padding: 20px; gap: 7px; }
@@ -1103,7 +1145,6 @@ body.ep-open { overflow: hidden; }
   .poster { display: none; }
   .detail-info h1 { font-size: 24px; }
   .detail-info .overview { -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-  .sidebar { width: min(var(--sbw, 280px), 86vw); }
   .ep-card { width: 196px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 11px; }
   .row { gap: 12px; }

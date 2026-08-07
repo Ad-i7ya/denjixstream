@@ -185,10 +185,18 @@ const sidebarHTML = `
 </nav>
 <div class="toast" id="toast"></div>`;
 app.innerHTML = sidebarHTML + `
+<button class="menu-btn" id="menuBtn" aria-label="Open menu"><span></span><span></span><span></span></button>
 <a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>`;
 document.body.prepend(app);
 const main = $('#main');
 const footerNote = () => `<div class="footer-disclaimer">This site does not store any files on the server. We only link to media which is hosted on 3rd party services. All trademarks and copyrights belong to their respective owners.</div>`;
+
+/* Apple-style hamburger — opens the liquid-glass drawer on tablets/phones */
+$('#menuBtn').addEventListener('click', () => {
+  const sb = $('#sidebar');
+  sb.classList.toggle('open');
+  closeMoreSheet();
+});
 
 $('#collapseBtn').addEventListener('click', () => {
   const sb = $('#sidebar'), btn = $('#collapseBtn'), el = $('.app');
@@ -268,7 +276,13 @@ document.addEventListener('click', (e) => {
     /* backdrop tap, or any link inside the sheet (navigation) closes it */
     if ((!inSheet && !e.target.closest('#moreBtn')) || (inSheet && e.target.closest('a'))) closeMoreSheet();
   }
-  const sb = $('#sidebar'); if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('#moreBtn')) sb.classList.remove('open');
+  const sb = $('#sidebar');
+  if (sb.classList.contains('open')) {
+    const inSb = e.target.closest('.sidebar');
+    /* backdrop tap, or any sidebar link (navigation) closes the drawer —
+       never when the toggle buttons themselves were clicked */
+    if ((!inSb && !e.target.closest('#moreBtn') && !e.target.closest('#menuBtn')) || (inSb && e.target.closest('a'))) sb.classList.remove('open');
+  }
 });
 
 function setActiveNav() {
