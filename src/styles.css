@@ -234,8 +234,13 @@ body.resizing * { cursor: col-resize !important; }
   -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
   opacity: 0; will-change: opacity;
 }
-.main-scroll.view-enter { animation: fadeUp .55s var(--ease-spring) both; }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(14px) scale(.995); } to { opacity: 1; transform: none; } }
+/* the outgoing page gently recedes under the frost while the veil is up */
+.main-scroll.route-leaving {
+  transform: scale(.985) translateY(8px);
+  transition: transform .34s var(--ease-spring);
+}
+.main-scroll.view-enter { animation: fadeUp .6s var(--ease-spring) both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(18px) scale(.99); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   #genreRows section { animation-delay: 0ms !important; }

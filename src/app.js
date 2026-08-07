@@ -152,7 +152,10 @@ async function router() {
   if (routeFirst || ROUTE_REDUCED) {
     routeFirst = false; /* first paint has nothing to transition from */
   } else {
-    /* Apple liquid-glass swap: the veil blurs the outgoing page upward… */
+    /* Apple liquid-glass swap: the outgoing page recedes under the frost
+       (soft scale-down with a spring) while the veil blurs it, then the
+       new page rises in as the veil dissolves */
+    main.classList.add('route-leaving');
     routeVeil.style.transition = 'opacity .16s ease, -webkit-backdrop-filter .16s ease, backdrop-filter .16s ease';
     routeVeil.style.opacity = '.92';
     routeVeil.style.webkitBackdropFilter = 'blur(16px) saturate(1.15)';
@@ -163,6 +166,7 @@ async function router() {
   const { fn, params } = matchRoute(location.hash || '#/');
   window.scrollTo(0, 0);
   fn(params);
+  main.classList.remove('route-leaving'); /* new page renders at rest; the rise takes over */
   /* pages that open with a title / search bar / player get top clearance so
      the always-visible floating logo never overlaps their header */
   const rp = (location.hash.replace(/^#/, '') || '/').split('?')[0];
