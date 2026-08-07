@@ -133,6 +133,17 @@ const APP_JS  = '/*__APP_JS__*/';
 /* Build stamp → cache key changes every build, so stale HTML is never served */
 const BUILD_STAMP = '/*__BUILD__*/';
 
+/* Developer Telegram profile photos — base64 JPEGs inlined at build time by
+   build.js from assets/ (do not edit the placeholder lines) */
+const AVATAR_KYREN = '/*__AVATAR_KYREN__*/';
+const AVATAR_DENJI = '/*__AVATAR_DENJI__*/';
+const b64ToBytes = (b64) => {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+
 async function serveApp(request, env, siteName, ctx) {
   // Built with concatenation (not a template literal) so inlined CSS/JS
   // containing backticks or ${...} can never break the worker.
@@ -181,6 +192,11 @@ export default {
     if (path === '/favicon.ico') {
       return new Response(FAVICON, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' } });
     }
+    /* developer Telegram profile photos (embedded at build time) */
+    if (path === '/avatars/kyren.jpg' || path === '/avatars/kyren')
+      return new Response(b64ToBytes(AVATAR_KYREN), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+    if (path === '/avatars/denji.jpg' || path === '/avatars/denji')
+      return new Response(b64ToBytes(AVATAR_DENJI), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
     if (path.startsWith('/api/tmdb/')) return tmdbHandler(request, url, env, ctx);
     if (path === '/api/stream') return streamHandler(request, url, env, ctx);
     if (path.startsWith('/api/')) return json({ error: 'not found' }, 404);

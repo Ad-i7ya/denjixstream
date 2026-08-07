@@ -263,8 +263,8 @@ const footerNote = () => `<footer class="site-footer">
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
-    <a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava">K</span><span>Kyren</span>${icon('telegram')}</a>
-    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava">D</span><span>Denji</span>${icon('telegram')}</a>
+    <a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava"><img src="/avatars/kyren.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">K</span><span>Kyren</span>${icon('telegram')}</a>
+    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava"><img src="/avatars/denji.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">D</span><span>Denji</span>${icon('telegram')}</a>
   </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
