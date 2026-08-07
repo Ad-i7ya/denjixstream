@@ -211,13 +211,20 @@ function setActiveNav() {
 }
 
 /* ---------------- COMPONENTS ---------------- */
+/* Card artwork: subtle shimmer while the image loads; a small elegant play mark
+   on a soft gradient when there is no image or it fails — no more big odd logos. */
+function cardArt(m, title) {
+  const src = m.backdrop_path ? IMG_BACKDROP(m.backdrop_path) : '';
+  if (!src) return `<div class="card-ph done"><i class="ph-play">${icon('play')}</i></div>`;
+  return `<div class="card-ph"></div><img loading="lazy" src="${src}" alt="${esc(title)}" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err'); this.previousElementSibling.classList.add('done')">`;
+}
 function backdropCard(m, { grid = false } = {}) {
   const title = m.title || m.name || '';
   const rating = m.vote_average ? Number(m.vote_average).toFixed(1) : null;
   const sub = (m.release_date ? year(m.release_date) : m.first_air_date ? year(m.first_air_date) : '');
   const href = `#/${m.media_type || (m.first_air_date ? 'tv' : 'movie')}/${m.id}`;
   return `<div class="card ${grid ? 'grid-card' : 'backdrop'}" onclick="location.hash='${href.slice(1)}'">
-    ${m.backdrop_path ? `<img loading="lazy" src="${IMG_BACKDROP(m.backdrop_path)}" alt="${esc(title)}">` : `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('film')}</div>`}
+    ${cardArt(m, title)}
     ${rating ? `<div class="card-rating">${icon('star')} ${rating}</div>` : ''}
     <div class="play-circle">${icon('play')}</div>
     <div class="glass"><div class="title">${esc(title)}</div><div class="sub">${sub ? `<span>${esc(sub)}</span>` : ''}${rating ? `<span class="r">★ ${rating}</span>` : ''}</div></div>
@@ -230,7 +237,7 @@ function continueCard(p) {
   const pct = hasP ? clamp((p.time / p.duration) * 100, 0, 100) : 0;
   const label = p.type === 'tv' ? `S${p.season}·E${p.episode}` : 'Movie';
   return `<div class="card backdrop" onclick="location.hash='${href.slice(1)}'">
-    ${p.backdrop_path ? `<img loading="lazy" src="${IMG_BACKDROP(p.backdrop_path)}" alt="">` : `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('film')}</div>`}
+    ${cardArt(p, '')}
     <div class="play-circle">${icon('play')}</div>
     <div class="glass"><div class="title">${esc(p.title || '')}</div><div class="sub">${label}${hasP ? ` · ${Math.round(pct)}%` : ''}</div></div>
     ${hasP ? `<div class="card-progress" style="width:${pct}%"></div>` : ''}
@@ -574,7 +581,7 @@ function episodeCard(ep, tvId, season) {
   const watched = p && p.season === season && p.episode === ep.episode_number && p.duration && p.time / p.duration > 0.85;
   return `<div class="ep-card" onclick="location.hash='#/watch/tv/${tvId}/${season}/${ep.episode_number}'">
     <div class="thumb">
-      ${ep.still_path ? `<img loading="lazy" src="${IMG_BACKDROP(ep.still_path)}" alt="">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#4b5563">${icon('tv')}</div>`}
+      ${ep.still_path ? `<div class="card-ph"></div><img loading="lazy" src="${IMG_BACKDROP(ep.still_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err'); this.previousElementSibling.classList.add('done')">` : `<div class="card-ph done"><i class="ph-play">${icon('play')}</i></div>`}
       <div class="num">E${ep.episode_number}</div>
       ${watched ? '<div class="watched">✓ Watched</div>' : ''}
     </div>
@@ -725,7 +732,7 @@ function buildSearchPopup() {
     list.forEach((it, i) => {
       const el = document.createElement('div');
       el.className = 'pop-item' + (i === focused ? ' focused' : '');
-      el.innerHTML = `<div class="thumb">${it.poster_path ? `<img src="${IMG_POSTER(it.poster_path)}" alt="">` : ''}</div>
+      el.innerHTML = `<div class="thumb shimmer-thumb">${it.poster_path ? `<img src="${IMG_POSTER(it.poster_path)}" alt="" onload="this.classList.add('loaded')" onerror="this.classList.add('img-err')">` : `<i class="ph-play ph-sm">${icon('play')}</i>`}</div>
         <div class="info"><div class="t">${esc(it.title || it.name || '')}</div><div class="d">${it.release_date ? year(it.release_date) : it.first_air_date ? year(it.first_air_date) : ''}${it.vote_average ? ' · ★ ' + Number(it.vote_average).toFixed(1) : ''}</div></div>
         <span class="type-chip ${it.media_type === 'tv' ? 'tv' : ''}">${it.media_type === 'tv' ? 'TV' : 'MOVIE'}</span>`;
       el.addEventListener('click', () => { close(); navigate(`#/${it.media_type}/${it.id}`); });
