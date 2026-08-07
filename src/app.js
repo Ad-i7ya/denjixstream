@@ -69,6 +69,28 @@ const ICONS = {
 };
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="${cls}">${ICONS[name] || ''}</svg>`;
 
+/* ---------------- LOGO MARK (liquid-glass play tile) ---------------- */
+const LOGO_MARK = `<svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="dxmG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4db0ff"/><stop offset=".5" stop-color="#0a84ff"/><stop offset="1" stop-color="#5e5ce6"/>
+    </linearGradient>
+    <linearGradient id="dxmHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="dxmGlow" cx=".5" cy=".38" r=".75">
+      <stop offset="0" stop-color="#8cc8ff" stop-opacity=".5"/><stop offset="1" stop-color="#0a84ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="#0e0e14"/>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#dxmGlow)"/>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#dxmG)"/>
+  <rect x="3" y="3" width="58" height="58" rx="17" stroke="rgba(255,255,255,.4)" stroke-width="1.6"/>
+  <path d="M7.5 20.5C7.5 13.6 13.1 8 20 8h24c6.9 0 12.5 5.6 12.5 12.5v5.5H7.5v-5.5Z" fill="url(#dxmHi)"/>
+  <circle cx="32" cy="35" r="14.5" fill="rgba(255,255,255,.15)"/>
+  <path d="M27.2 25.8v18.4l15.6-9.2-15.6-9.2Z" fill="#fff"/>
+</svg>`;
+
 /* ---------------- TOAST ---------------- */
 let toastTimer;
 function toast(msg) {
@@ -116,7 +138,7 @@ window.addEventListener('hashchange', router);
 const app = document.createElement('div'); app.className = 'app';
 const sidebarHTML = `
 <aside class="sidebar" id="sidebar">
-  <div class="logo"><a href="#/">${esc(SITE_NAME)}</a></div>
+  <div class="logo"><a href="#/" title="${esc(SITE_NAME)}">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a></div>
   <div class="side-section">
     <a class="side-link" data-nav="home" href="#/">${icon('home')}<span>Home</span></a>
     <a class="side-link" data-nav="search" href="#/search">${icon('search')}<span>Search</span></a>
@@ -505,7 +527,9 @@ async function viewWatch(params) {
   const select = (i) => {
     const s = servers.servers[i];
     $$('.server-tab', tabs).forEach(t => t.classList.toggle('active', +t.dataset.i === i));
-    $('#playerShell').innerHTML = `<iframe src="${esc(s.url)}" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" referrerpolicy="origin" title="Video player"></iframe>`;
+    // sandbox (no allow-popups / allow-top-navigation) blocks popunder & redirect ads
+    // that embed providers fire on click; no-referrer hides our referrer from ad networks.
+    $('#playerShell').innerHTML = `<iframe src="${esc(s.url)}" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
   };
   tabs.addEventListener('click', e => { const b = e.target.closest('.server-tab'); if (b) select(+b.dataset.i); });
   select(0);
