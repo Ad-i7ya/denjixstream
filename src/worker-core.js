@@ -86,7 +86,7 @@ const EMBED_SERVERS = [
   { name: 'VidLink', url: (t, i, s, e) => `https://vidlink.pro/${t}/${i}${s ? `/${s}/${e}` : ''}` },
   { name: 'VidLinkMe', url: (t, i, s, e) => `https://vidlink.me/${t}/${i}${s ? `/${s}/${e}` : ''}` },
   { name: 'VSrcMe', url: (t, i, s, e) => `https://vidsrc.me/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
-  { name: 'VidGod', url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
+  { name: 'VidGod', sbx: true, url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
   { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'VSrc', url: (t, i, s, e) => `https://vsembed.ru/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
   { name: 'AirFlix', url: (t, i, s, e) => `https://airflix1.com/embed/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
@@ -96,7 +96,9 @@ const EMBED_SERVERS = [
 ];
 
 function resolveServers(type, id, season, episode) {
-  return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, url: s.url(type, id, season, episode) }));
+  /* sbx flag mirrors streamex.sh: only a few embeds need the sandbox attribute
+     (most players refuse to boot under sandbox and show a 'sandbox' error) */
+  return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, sbx: !!s.sbx, url: s.url(type, id, season, episode) }));
 }
 
 async function streamHandler(request, url, env, ctx) {
@@ -105,7 +107,7 @@ async function streamHandler(request, url, env, ctx) {
   const season = url.searchParams.get('season');
   const episode = url.searchParams.get('episode');
   if (!/^\d+$/.test(id)) return json({ error: 'bad id' }, 400);
-  const cacheKey = `stream:${type}:${id}:${season || ''}:${episode || ''}`;
+  const cacheKey = `stream:v2:${type}:${id}:${season || ''}:${episode || ''}`;
   const c = cacheStore();
   if (c) {
     try {

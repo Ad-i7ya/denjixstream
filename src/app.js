@@ -252,6 +252,11 @@ const footerNote = () => `<footer class="site-footer">
     <a href="#/">Home</a><a href="#/browse/movie">Movies</a><a href="#/browse/tv">TV Shows</a>
     <a href="#/anime">Anime</a><a href="#/categories">Categories</a><a href="#/legal">Legal / DMCA</a>
   </nav>
+  <div class="foot-devs" aria-label="Developers">
+    <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
+    <a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava">K</span><span>Kyren</span>${icon('telegram')}</a>
+    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava">D</span><span>Denji</span>${icon('telegram')}</a>
+  </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
 </footer>`;
@@ -1090,7 +1095,7 @@ async function viewWatch(params) {
     return;
   }
   srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">Ad-safe mode is on (no pop-ups/redirects). If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:10px">The player is shielded from stray-click ads. If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
@@ -1105,14 +1110,14 @@ async function viewWatch(params) {
       <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
       <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
     </div>
-    <!-- sandbox: players boot fully (scripts/same-origin/forms/popups/modals/
-         downloads/presentation) while allow-top-navigation stays OFF so an
-         embed can never redirect the whole tab away from the site. Popups may
-         open but stay INSIDE the sandbox (no allow-popups-to-escape-sandbox)
-         — popunder ads can't escape to real tabs. The pl-shield swallows stray
-         clicks for the first seconds, and the servers were chosen ad-light. -->
+    <!-- Per-server sandbox (same model as streamex.sh): most players refuse to
+         boot when sandboxed — only embeds that need it (marked sbx in the
+         server list) get the attribute, and only those iframes keep
+         top-navigation blocked. The pl-shield swallows stray clicks for the
+         first seconds and the servers are ad-light. No referrerpolicy
+         override: embeds rely on the origin referrer to resolve streams. -->
     <div class="pl-shield" aria-hidden="true"></div>
-    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-downloads allow-modals allow-orientation-lock" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    <iframe id="plFrame"${s.sbx ? ` sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-downloads allow-modals allow-orientation-lock"` : ''} allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];

@@ -1235,6 +1235,44 @@ body.ep-open { overflow: hidden; }
 .foot-legal { font-size: 12px; color: var(--text-muted); line-height: 1.7; max-width: 640px; margin: 0; }
 .foot-copy { font-size: 12px; color: var(--text-muted); margin: 0; }
 .heart { color: #ff4d6d; }
+/* Developers — frosted-glass contact chips (tap → Telegram profile) */
+.foot-devs {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px;
+  margin-top: 2px;
+}
+.foot-devs-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em;
+  color: var(--text-muted); margin-right: 4px;
+}
+.foot-devs-label svg { width: 13px; height: 13px; }
+.dev-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 15px 7px 8px; border-radius: 999px;
+  text-decoration: none; color: #fff; font-size: 13px; font-weight: 600;
+  background: linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.04));
+  border: 1px solid rgba(255,255,255,.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35); backdrop-filter: blur(16px) saturate(1.35);
+  box-shadow: var(--highlight-inset), 0 6px 18px rgba(0,0,0,.28);
+  transition: all .28s var(--ease-spring);
+}
+.dev-chip svg { width: 13px; height: 13px; opacity: .75; }
+.dev-chip:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, rgba(255,255,255,.17), rgba(255,255,255,.07));
+  border-color: rgba(255,255,255,.3);
+  box-shadow: 0 10px 26px rgba(0,0,0,.4), var(--highlight-inset);
+}
+.dev-chip:hover svg { opacity: 1; }
+.dev-ava {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #4db0ff, #5e5ce6);
+  border: 1px solid rgba(255,255,255,.28);
+  box-shadow: 0 2px 8px rgba(10,132,255,.35);
+}
+.dev-chip:nth-child(3) .dev-ava { background: linear-gradient(135deg, #8e8e93, #48484a); }
 /* off-screen grids skip layout + paint until scrolled near — smooth scrolling;
    the auto intrinsic size remembers each grid's real height after first paint */
 .grid, .cat-grid { content-visibility: auto; contain-intrinsic-size: auto 520px; }
