@@ -153,7 +153,7 @@ let routeFirst = true;
 const ROUTE_REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 /* smaller full-screen blur on phones — the transition veil is GPU-cheap there */
 const VEIL_BLUR = (window.innerWidth || 1200) < 768 ? 10 : 16;
-async function router() {
+async function router(restoreY) {
   const tok = ++routeTok;
   stopHeroTimer();
   /* tear down any leftover episode overlay + its cache on navigation */
@@ -174,8 +174,11 @@ async function router() {
     if (tok !== routeTok) return; /* a newer navigation superseded this one */
   }
   const { fn, params } = matchRoute(location.hash || '#/');
-  window.scrollTo(0, 0);
   fn(params);
+  /* back/forward restores where the user left that page; new navigations land at
+     top. rAF lets async rows paint first so a deep restore doesn't clamp to the
+     skeleton height */
+  requestAnimationFrame(() => window.scrollTo(0, restoreY ? Math.max(0, restoreY) : 0));
   main.classList.remove('route-leaving'); /* new page renders at rest; the rise takes over */
   /* pages that open with a title / search bar / player get top clearance so
      the always-visible floating logo never overlaps their header */
@@ -194,7 +197,20 @@ async function router() {
   setActiveNav();
   beacon('page', { title: document.title });
 }
-window.addEventListener('hashchange', router);
+/* scroll memory — browser back/forward shows the previous page exactly where
+   the user left it (the hash itself already restores the right view) */
+const scrollMem = {};
+window.addEventListener('hashchange', (e) => {
+  const oldH = String((e && e.oldURL) || '').split('#')[1] || '';
+  const newH = String((e && e.newURL) || '').split('#')[1] || '/';
+  if (oldH) {
+    scrollMem[oldH] = window.scrollY || 0;
+    /* keep the memory bounded — drop the oldest entry past 120 pages */
+    const keys = Object.keys(scrollMem);
+    if (keys.length > 120) delete scrollMem[keys[0]];
+  }
+  router(scrollMem[newH]);
+});
 
 /* ---------------- LAYOUT ---------------- */
 const app = document.createElement('div'); app.className = 'app';
@@ -249,18 +265,21 @@ const routeVeil = document.createElement('div');
 routeVeil.id = 'routeVeil';
 document.body.appendChild(routeVeil);
 let routeTok = 0;
-/* hide the floating logo once the page is scrolled down — it fades back in
-   only when the user is back at the very top */
+/* the floating home chip is redundant at the very top (the sidebar and mobile
+   nav already have Home buttons there) — it stays tucked away until the user
+   scrolls down, then pops out so there is always a way back home */
 const floatLogo = $('.float-logo');
 const updateFloatLogo = () => {
   if (!floatLogo) return;
-  floatLogo.classList.toggle('scrolled', (window.scrollY || document.documentElement.scrollTop) > 24);
+  floatLogo.classList.toggle('scrolled', (window.scrollY || document.documentElement.scrollTop) <= 24);
 };
 window.addEventListener('scroll', updateFloatLogo, { passive: true });
 const main = $('#main');
+/* one shared dev chip — always carries the Telegram profile photo. The avatar
+   file is picked from the handle so reordered panel devs never swap faces. */
+const devChip = (d) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava"><img src="/avatars/${/kzr0x/i.test(String(d.handle || '')) ? 'kyren' : 'denji'}.jpg?v=3" alt="" loading="lazy" decoding="async" onerror="this.remove()">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
 const footerNote = () => {
   const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
-  const chip = (d, i) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava"><img src="/avatars/${i === 0 ? 'kyren' : 'denji'}.jpg?v=2" alt="" loading="lazy" decoding="async" onerror="this.remove()">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
   return `<footer class="site-footer">
   <a class="foot-brand" href="#/">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>
   <nav class="foot-links" aria-label="Footer">
@@ -270,8 +289,7 @@ const footerNote = () => {
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
-    ${devs ? chip(devs[0], 0) + chip(devs[1], 1) : `<a class="dev-chip" href="https://t.me/kzr0x" target="_blank" rel="noopener" title="Kyren on Telegram"><span class="dev-ava"><img src="/avatars/kyren.jpg?v=2" alt="" loading="lazy" decoding="async" onerror="this.remove()">K</span><span>Kyren</span>${icon('telegram')}</a>
-    <a class="dev-chip" href="https://t.me/te4m1ord" target="_blank" rel="noopener" title="Denji on Telegram"><span class="dev-ava"><img src="/avatars/denji.jpg?v=2" alt="" loading="lazy" decoding="async" onerror="this.remove()">D</span><span>Denji</span>${icon('telegram')}</a>`}
+    ${devs ? devChip(devs[0]) + devChip(devs[1]) : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' })}
   </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
@@ -1042,21 +1060,29 @@ const searchPreview = async () => {
 async function viewSearch() {
   const q = parseQuery(location.hash.split('?')[1]);
   const query = (q.q || '').trim();
+  /* the filter tab rides in the hash (#/search?q=..&st=movie) so back/forward
+     restores both the query AND the Movies/TV filter */
+  let st = (q.st === 'movie' || q.st === 'tv') ? q.st : 'multi';
   main.innerHTML = `<div class="search-bar">${icon('search')}<input id="searchInput" placeholder="Search movies, TV shows..." value="${esc(query)}" autofocus autocomplete="off" spellcheck="false" name="dx-search"><button class="sr-kbd" id="srKbd" type="button" title="Quick search (Ctrl+K)">${/Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K'}</button></div>
     <div class="filter-tabs" id="searchTabs">
-      <button class="chip active" data-st="multi">All</button>
-      <button class="chip" data-st="movie">Movies</button>
-      <button class="chip" data-st="tv">TV Shows</button>
+      <button class="chip ${st === 'multi' ? 'active' : ''}" data-st="multi">All</button>
+      <button class="chip ${st === 'movie' ? 'active' : ''}" data-st="movie">Movies</button>
+      <button class="chip ${st === 'tv' ? 'active' : ''}" data-st="tv">TV Shows</button>
     </div>
     <div id="searchResults">${query ? SKELETON_GRID : `<div class="skeleton" style="height:300px;border-radius:20px"></div>`}</div>`;
   const input = $('#searchInput'), tabs = $('#searchTabs');
-  let st = 'multi';
   /* the Ctrl+K chip inside the search bar opens the quick-search popup on click */
   $('#srKbd')?.addEventListener('click', () => { if (typeof window.openSearch !== 'function') buildSearchPopup(); window.openSearch(); });
+  const syncHash = (v) => {
+    const parts = [];
+    if (v) parts.push('q=' + encodeURIComponent(v));
+    if (st !== 'multi') parts.push('st=' + st);
+    history.replaceState(null, '', parts.length ? '#/search?' + parts.join('&') : '#/search');
+  };
   const run = debounce(async () => {
     const v = input.value.trim();
-    if (!v) { history.replaceState(null, '', '#/search'); searchPreview(); return; }
-    history.replaceState(null, '', '#/search?q=' + encodeURIComponent(v));
+    if (!v) { history.replaceState(null, '', st !== 'multi' ? '#/search?st=' + st : '#/search'); searchPreview(); return; }
+    syncHash(v);
     beacon('search', { q: String(v).slice(0, 100) });
     $('#searchResults').innerHTML = SKELETON_GRID;
     const path = st === 'multi' ? '/search/multi' : `/search/${st}`;
@@ -1585,8 +1611,7 @@ function applySiteConfig() {
   /* footer developer chips from the admin panel (applied after config loads) */
   if (cfg.devs && cfg.devs.length) {
     $$('.foot-devs').forEach(box => {
-      const chip = (d) => d ? `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava">${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>` : '';
-      box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${chip(cfg.devs[0])}${chip(cfg.devs[1])}`;
+      box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${devChip(cfg.devs[0])}${devChip(cfg.devs[1])}`;
     });
   }
   /* section toggles from the panel: anime / watchlist / history / hero / contact */
