@@ -142,6 +142,8 @@ function router() {
      the always-visible floating logo never overlaps their header */
   const rp = (location.hash.replace(/^#/, '') || '/').split('?')[0];
   main.classList.toggle('logo-gap', /^\/(search|browse|categories|anime|watchlist|history|legal|watch)\b/.test(rp));
+  // route switches reset scroll programmatically (no scroll event fires) — sync the logo state
+  requestAnimationFrame(updateFloatLogo);
   // re-trigger the per-view fade-up AFTER render for Apple-smooth transitions
   main.classList.remove('view-enter'); void main.offsetWidth; main.classList.add('view-enter');
   setActiveNav();
@@ -194,6 +196,14 @@ app.innerHTML = sidebarHTML + `
 <button class="menu-btn" id="menuBtn" aria-label="Open menu"><span></span><span></span><span></span></button>
 <a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>`;
 document.body.prepend(app);
+/* hide the floating logo once the page is scrolled down — it fades back in
+   only when the user is back at the very top */
+const floatLogo = $('.float-logo');
+const updateFloatLogo = () => {
+  if (!floatLogo) return;
+  floatLogo.classList.toggle('scrolled', (window.scrollY || document.documentElement.scrollTop) > 24);
+};
+window.addEventListener('scroll', updateFloatLogo, { passive: true });
 const main = $('#main');
 const footerNote = () => `<footer class="site-footer">
   <a class="foot-brand" href="#/">${LOGO_MARK}<span class="logo-word">${esc(SITE_NAME)}</span></a>

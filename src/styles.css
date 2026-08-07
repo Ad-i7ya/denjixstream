@@ -191,6 +191,8 @@ body.resizing * { cursor: col-resize !important; }
 .float-logo .logo-mark { width: 28px; height: 28px; }
 .float-logo .logo-word { font-size: 17px; }
 .float-logo { transition: transform .3s var(--ease-spring), background .3s, opacity .3s; }
+/* scrolled away from the top — the logo slips up & fades out of the way */
+.float-logo.scrolled { opacity: 0; pointer-events: none; transform: translateY(-12px) scale(.94); }
 
 /* Apple-style hamburger — opens the liquid-glass drawer (tablets/phones only) */
 .menu-btn {
