@@ -292,16 +292,17 @@ document.body.appendChild(aurora);
    and for reduced-motion users (their aurora is frozen anyway). */
 (function initAuroraParallax() {
   if (!aurora || !window.matchMedia) return;
-  if (!window.matchMedia('(pointer: fine)').matches) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const fine = window.matchMedia('(pointer: fine)').matches;
   const yPos = () => window.scrollY || document.documentElement.scrollTop;
   let pRaf = 0;
   const apply = () => {
     pRaf = 0;
-    /* ~5% of scroll, capped at a quarter viewport height — the container has
-       30vh of slack top/bottom, so the field never uncovers an edge */
+    /* ~5% of scroll on desktop, ~3% on phones — same quarter-viewport clamp,
+       and the container keeps its 30vh slack so the field never uncovers an
+       edge at either speed */
     const maxShift = Math.round(window.innerHeight * 0.25);
-    const y = clamp(-yPos() * 0.05, -maxShift, maxShift);
+    const y = clamp(-yPos() * (fine ? 0.05 : 0.03), -maxShift, maxShift);
     aurora.style.transform = `translate3d(0, ${y}px, 0)`;
   };
   window.addEventListener('scroll', () => { if (!pRaf) pRaf = requestAnimationFrame(apply); }, { passive: true });
@@ -319,25 +320,40 @@ document.body.appendChild(aurora);
    img inside keeps its own heroZoom animation untouched. */
 (function initHeroScrollFX() {
   if (!window.matchMedia) return;
-  if (!window.matchMedia('(pointer: fine)').matches) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  /* desktop gets the full drift + collapse; phones get the same cinematic feel
+     at roughly half intensity — lighter factors, and no will-change (see CSS)
+     — so touch scroll stays buttery on mobile GPUs */
+  const fine = window.matchMedia('(pointer: fine)').matches;
+  const K_BG = fine ? 0.3 : 0.15;   /* backdrop drift factor */
+  const K_SC = fine ? 0.07 : 0.04;  /* collapse scale factor */
   const yPos = () => window.scrollY || document.documentElement.scrollTop;
   let hRaf = 0;
+  let heroEl = null, heroH = 0;
+  /* hero height is cached so the rAF loop never forces layout per frame (the
+     main phone perf win) — re-measured on resize and when a route swap
+     replaces the hero (isConnected check) */
+  const measure = () => { heroEl = document.querySelector('.hero'); heroH = heroEl ? (heroEl.offsetHeight || 0) : 0; };
   const apply = () => {
     hRaf = 0;
-    const hero = document.querySelector('.hero');
-    if (!hero) return;
-    const h = hero.offsetHeight || 0;
+    if (!heroEl || !heroEl.isConnected) measure();
+    const hero = heroEl; if (!hero) return;
+    /* freeze while a trailer is playing — per-frame transform+opacity under a
+       YouTube iframe is the heaviest phone cost, and the trailer already
+       covers the artwork */
+    if (hero.querySelector('.hero-slide.playing')) return;
     const y = yPos();
-    const t = clamp(y * 0.3, 0, Math.max(0, h * 0.15));
+    const t = clamp(y * K_BG, 0, Math.max(0, heroH * (fine ? 0.15 : 0.1)));
     hero.style.setProperty('--hp', Math.round(t) + 'px');
-    if (h > 0) {
-      const p = clamp(y / h, 0, 1); /* 0 at top → 1 once the hero has scrolled out */
-      hero.style.setProperty('--hs', (1 - 0.07 * p).toFixed(3));
+    if (heroH > 0) {
+      const p = clamp(y / heroH, 0, 1); /* 0 at top → 1 once the hero has scrolled out */
+      hero.style.setProperty('--hs', (1 - K_SC * p).toFixed(3));
       hero.style.setProperty('--ho', (1 - p).toFixed(3));
     }
   };
   window.addEventListener('scroll', () => { if (!hRaf) hRaf = requestAnimationFrame(apply); }, { passive: true });
+  window.addEventListener('resize', debounce(measure, 150));
+  measure();
   apply();
 })();
 let routeTok = 0;

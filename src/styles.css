@@ -493,6 +493,10 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 @media (prefers-reduced-motion: reduce) {
   .reveal-ready, .reveal-ready.in-view { opacity: 1 !important; transform: none !important; transition: none !important; }
 }
+@media (max-width: 768px) {
+  /* phones: shorter, quicker rise — the reveal stays cinematic but never reads as lag */
+  .reveal-ready { transform: translateY(12px); transition-duration: .5s; }
+}
 .chip {
   padding: 7px 15px; border-radius: 999px; font-size: 13px; font-weight: 500;
   background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.05));
@@ -511,8 +515,9 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   border: 1px solid rgba(255,255,255,.14);
   box-shadow: var(--shadow-glass);
   /* Apple-style scroll-out collapse: initHeroScrollFX drives --hs (scale) and
-     --ho (opacity) over the first hero-height of scroll; defaults keep it
-     static on touch devices and for reduced-motion users */
+     --ho (opacity) over the first hero-height of scroll — full intensity on
+     desktop, roughly half on touch (lighter factors in JS, no will-change
+     here for touch), static for reduced-motion users */
   transform: scale(var(--hs, 1));
   opacity: var(--ho, 1);
   transform-origin: top center;
