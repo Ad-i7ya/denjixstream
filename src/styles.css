@@ -868,14 +868,36 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
   box-shadow: var(--shadow-lift);
   aspect-ratio: 16/9;
 }
-/* click shield: an invisible layer over the player swallows stray clicks for the
-   first seconds so embed ad-overlays can't hijack the pointer — then releases */
+/* ad shield: an invisible layer over the player swallows the FIRST tap — the
+   one interaction clickjacking ad-overlays hook — then dissolves so the video
+   is fully interactive. Combined with the restrictive iframe sandbox (no
+   allow-popups / allow-top-navigation) the embed has no way to open ad tabs. */
 .pl-shield {
   position: absolute; inset: 0; z-index: 5;
-  cursor: default;
-  animation: shieldOff 4s var(--ease-smooth) forwards;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  transition: opacity .35s var(--ease-smooth), visibility .35s;
 }
-@keyframes shieldOff { 0%, 70% { pointer-events: auto; } 100% { pointer-events: none; } }
+.pl-shield-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07));
+  -webkit-backdrop-filter: var(--blur-soft); backdrop-filter: var(--blur-soft);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass), var(--highlight-inset);
+  color: #fff; font-size: 12.5px; font-weight: 600;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .3s var(--ease-smooth), transform .3s var(--ease-spring);
+  pointer-events: none;
+}
+.pl-shield:hover .pl-shield-chip, .pl-shield:active .pl-shield-chip { opacity: 1; transform: none; }
+@media (hover: none) { .pl-shield-chip { opacity: .85; transform: none; } }
+.pl-shield-chip svg { width: 15px; height: 15px; }
+.pl-shield-chip em { font-style: normal; letter-spacing: -.01em; }
+/* after the enabling tap the shield fades and pointer-events drop off — the
+   player is fully interactive and the embed never saw that first click */
+.pl-shield.released { opacity: 0; visibility: hidden; pointer-events: none; }
 /* real fullscreen must fill the screen (UA :fullscreen max-width:none is overridden by the cap above) */
 .player-wrap:fullscreen { max-width: none !important; border-radius: 0; }
 .player-wrap video, .player-wrap iframe { width: 100%; aspect-ratio: 16/9; display: block; background: #000; border: none; }

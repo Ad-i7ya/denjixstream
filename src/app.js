@@ -1140,14 +1140,15 @@ async function viewWatch(params) {
       <div class="pl-err-sub">Some servers are geo-blocked or busy — switch to another one below, or retry in a moment.</div>
       <button class="btn btn-primary" id="plRetry">${icon('play')} Retry</button>
     </div>
-    <!-- Per-server sandbox (same model as streamex.sh): most players refuse to
-         boot when sandboxed — only embeds that need it (marked sbx in the
-         server list) get the attribute, and only those iframes keep
-         top-navigation blocked. The pl-shield swallows stray clicks for the
-         first seconds and the servers are ad-light. No referrerpolicy
-         override: embeds rely on the origin referrer to resolve streams. -->
-    <div class="pl-shield" aria-hidden="true"></div>
-    <iframe id="plFrame"${s.sbx ? ` sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-downloads allow-modals allow-orientation-lock"` : ''} allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
+    <!-- Ad-proof player: every embed runs in a restrictive sandbox — NO
+         allow-popups and NO allow-top-navigation — so the embed's ad JS
+         physically cannot open new tabs or hijack the page, no matter what
+         the user clicks. The pl-shield swallows the FIRST tap (the one
+         interaction clickjacking ad-overlays hook); tap once to enable
+         controls. No referrerpolicy override: embeds rely on the origin
+         referrer to resolve streams. -->
+    <div class="pl-shield" aria-hidden="true"><span class="pl-shield-chip">${icon('play')}<em>Tap to enable controls</em></span></div>
+    <iframe id="plFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads allow-modals allow-orientation-lock" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
     const s = servers.servers[i];
@@ -1160,10 +1161,26 @@ async function viewWatch(params) {
     const showErr = () => { err.classList.add('show'); hideLoading(); };
     clearTimeout(loadTimer);
     /* an embed that loads a page is “playing” — hide the ring; if nothing loads
-       in 14s, show the animated error card instead of a silent black screen */
-    frame.addEventListener('load', () => { loaded = true; hideLoading(); const sh = $('.pl-shield', shell); if (sh) sh.remove(); });
+       in 14s, show the animated error card instead of a silent black screen.
+       The ad shield STAYS until the user's first tap — that first interaction
+       (the one clickjacking ad-overlays hook) is swallowed by the shield, then
+       controls are enabled and the video is fully interactive. */
+    /* arm the ad shield: swallow the FIRST tap (clickjacking ad-overlays hook),
+       then release so the video is fully interactive. Re-armable so Retry and
+       every server switch starts shielded again. */
+    const armShield = () => {
+      const sh = $('.pl-shield', shell);
+      if (!sh) return;
+      sh.classList.remove('released');
+      sh.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        sh.classList.add('released'); /* fades out; pointer-events off */
+      }, { once: true });
+    };
+    armShield();
+    frame.addEventListener('load', () => { loaded = true; hideLoading(); });
     loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000);
-    $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
+    $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; armShield(); loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
     $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); const el = shell; if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); });
     $('#plEps')?.addEventListener('click', (e) => { e.stopPropagation(); epOpen && epCloseFn ? epCloseFn() : openEpOverlay(); });
     /* set src only after the load listener is attached (no race → loading ring
