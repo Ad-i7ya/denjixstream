@@ -1131,7 +1131,7 @@ async function viewWatch(params) {
     return;
   }
   srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">Ads are auto-blocked: any popup a server tries to open is closed instantly. If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:10px">Verified ad-free servers are listed first (popup-cloaking ones were removed); the rest are backups. The player swallows stray clicks until you enable it. If a server refuses to play, just pick another one below — all ${servers.servers.length} are here.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
@@ -1154,7 +1154,7 @@ async function viewWatch(params) {
          The pl-shield swallows the FIRST tap (the interaction clickjacking
          ad-overlays hook); tap once to enable controls. No referrerpolicy
          override: embeds rely on the origin referrer to resolve streams. -->
-    <div class="pl-shield" aria-hidden="true"><span class="pl-shield-chip">${icon('play')}<em>Tap to enable controls</em></span></div>
+    <div class="pl-shield" aria-hidden="true"><span class="pl-shield-chip">${icon('play')}<em>Enable player</em></span></div>
     <iframe id="plFrame" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture" scrolling="no" title="Video player" loading="eager"></iframe>`;
   let loadTimer = null;
   const select = (i) => {
@@ -1179,10 +1179,27 @@ async function viewWatch(params) {
       const sh = $('.pl-shield', shell);
       if (!sh) return;
       sh.classList.remove('released');
-      sh.addEventListener('click', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        sh.classList.add('released'); /* fades out; pointer-events off */
-      }, { once: true });
+      /* ad overlays hook pointerdown/touchstart/click — the shield absorbs the
+         ENTIRE first gesture (down → up → click) so the embed never sees a
+         stray interaction, then releases on the NEXT pointerdown. Releasing on
+         the first pointerup would leak that same tap's click to the embed. */
+      const nudge = (e) => { e.preventDefault(); e.stopPropagation(); };
+      const EVS = ['pointerdown', 'mousedown', 'touchstart', 'pointerup', 'pointercancel', 'click'];
+      /* swallow EVERYTHING while armed — the full first gesture (down→up→click)
+         never reaches the embed. Release only on the SECOND pointerdown: the
+         counter listener is registered BEFORE the nudge in capture phase so it
+         always runs, then disarms on tap #2. */
+      let taps = 0;
+      const onDown = () => {
+        taps += 1;
+        if (taps >= 2) {
+          sh.classList.add('released'); /* fades out; pointer-events off */
+          EVS.forEach(ev => sh.removeEventListener(ev, nudge, { capture: true }));
+          sh.removeEventListener('pointerdown', onDown, { capture: true });
+        }
+      };
+      sh.addEventListener('pointerdown', onDown, { capture: true });
+      EVS.forEach(ev => sh.addEventListener(ev, nudge, { capture: true }));
     };
     armShield();
     frame.addEventListener('load', () => { loaded = true; hideLoading(); });
