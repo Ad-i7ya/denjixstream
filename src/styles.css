@@ -212,6 +212,7 @@ body.resizing * { cursor: col-resize !important; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  #genreRows section { animation-delay: 0ms !important; }
 }
 
 /* Mobile bottom nav — frosted floating bar */
@@ -1117,6 +1118,8 @@ body.ep-open { overflow: hidden; }
 /* off-screen grids skip layout + paint until scrolled near — smooth scrolling;
    the auto intrinsic size remembers each grid's real height after first paint */
 .grid, .cat-grid { content-visibility: auto; contain-intrinsic-size: auto 520px; }
+/* home-page category rows cascade in after the main rows finish loading */
+#genreRows section { animation: fadeUp .55s var(--ease-smooth) both; }
 
 /* ---------- Responsive / orientation ---------- */
 @media (max-width: 1100px) {

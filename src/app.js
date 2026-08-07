@@ -529,9 +529,47 @@ async function viewHome() {
     gridSection('Top Rated', topRated.slice(0, 10), '#/browse/movie?sort=top_rated') +
     rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing') +
     rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming') +
+    '<div id="genreRows"></div>' +
     footerNote();
   bindHeroCarousel();
   bindWatchlistButtons();
+  loadGenreRows();
+}
+
+/* Extra category rows load right after the main rows — the home page becomes a
+   long, browsable scroll where every section is its own category. */
+async function loadGenreRows() {
+  const box = $('#genreRows'); if (!box) return;
+  const out = await Promise.all([
+    genreRow('Action', 28),
+    genreRow('Sci-Fi & Fantasy', 878),
+    genreRow('Comedy', 35),
+    genreRow('Horror', 27),
+    genreRow('Romance', 10749),
+    genreRow('Crime', 80),
+    genreRow('Animation', 16),
+    genreRow('Documentary', 99),
+    genreRow('Drama', 18),
+    grossRow(),
+    airingRow(),
+  ]);
+  box.innerHTML = out.join('');
+  box.querySelectorAll('section').forEach((s, i) => s.style.animationDelay = (i * 55) + 'ms');
+}
+async function genreRow(title, gid) {
+  const r = await api(`/discover/movie?language=en-US&with_genres=${gid}&sort_by=popularity.desc`).catch(() => null);
+  const items = ((r && r.results) || []).slice(0, 16);
+  return items.length ? rowSection(title, items, `#/browse/movie?genre=${gid}`) : '';
+}
+async function grossRow() {
+  const r = await api('/discover/movie?language=en-US&sort_by=revenue.desc').catch(() => null);
+  const items = ((r && r.results) || []).slice(0, 16);
+  return items.length ? rowSection('Highest Grossing', items, '#/browse/movie?sort=revenue') : '';
+}
+async function airingRow() {
+  const r = await api('/tv/airing_today?language=en-US').catch(() => null);
+  const items = ((r && r.results) || []).slice(0, 16).map(m => ({ ...m, media_type: 'tv' }));
+  return items.length ? rowSection('Airing Today TV', items, '#/browse/tv?sort=on_the_air') : '';
 }
 
 function parseQuery(q) { return Object.fromEntries(new URLSearchParams(q || '')); }
@@ -572,6 +610,7 @@ async function viewBrowse(params) {
     if (anime) return `/discover/${type}?language=en-US&with_original_language=ja&with_genres=16&sort_by=${sortBy}${pg}`;
     if (genreId) return `/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sortBy}${decade ? '&' + dateRange(type, decade) : ''}${pg}`;
     if (decade) return `/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}${pg}`;
+    if (sort === 'revenue') return `/discover/${type}?language=en-US&sort_by=revenue.desc${pg}`;
     if (sort === 'similar' && simId) return `/${type}/${simId}/similar?language=en-US&page=${p}`;
     if (sort === 'trending') return `/trending/${type}/day?language=en-US${pg}`;
     return `/${type}/${sort}?language=en-US${pg}`;
