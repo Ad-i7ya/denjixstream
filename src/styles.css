@@ -1421,6 +1421,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
   box-shadow: var(--highlight-inset);
 }
 .server-tab > span { overflow: hidden; text-overflow: ellipsis; }
+/* multi-language badge — servers whose players expose audio/subtitle switching */
+.server-tab .srv-lang { font-size: 12px; line-height: 1; filter: saturate(1.2); flex-shrink: 0; }
+.server-tab.active .srv-lang { filter: none; }
 .server-tab:hover { color: #fff; background: rgba(255,255,255,.14); transform: translateY(-1px); }
 .server-tab.active { background: #fff; color: #000; border-color: rgba(255,255,255,.9); box-shadow: 0 6px 18px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.6); }
 .server-tab .srv-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; flex-shrink: 0; box-shadow: 0 0 6px rgba(255,255,255,.7); }

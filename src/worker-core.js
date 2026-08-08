@@ -73,9 +73,12 @@ async function tmdbHandler(request, url, env, ctx) {
 }
 
 /* ---------------- Stream resolution (verified-working embed servers) ----------------
-   vidplays.fun (VidPlay), cinemaos.tech, peachify, screenscape, modocine & vixsrc
-   died since the streamex list was extracted — every server below was HTTP-tested
-   today for both movies AND TV. XPass leads (fast, reliable, no popups). */
+   Every server below was HTTP-tested 2026-08 for both movies AND TV. The
+   lang:true servers (VidLink, VidCore, VidLinkMe, SuperEmbed) ship players
+   with a built-in language menu — multiple AUDIO tracks and captions/subtitles
+   in many languages (their player JS exposes audioTrack/captions APIs).
+   embed.su (parked), vidsrc.xyz (NXDOMAIN), cineby.ru (for sale), vidsrc.to
+   (llvpn ad script) and multiembed.mov (403) were rejected in the same pass. */
 const EMBED_SERVERS = [
   /* autoplay=1 on every URL (VidGod already had autoplay=true): the embed's own
      poster/thumbnail frame is skipped and the video starts directly — no stale
@@ -87,20 +90,25 @@ const EMBED_SERVERS = [
      were removed — their ad tabs cannot be blocked without sandboxing, which
      the embeds themselves refuse. */
   { name: 'ZXC Stream', flag: '★', rec: true, url: (t, i, s, e) => `https://www.zxcstream.xyz/player/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
-  { name: 'VidLink', url: (t, i, s, e) => `https://vidlink.pro/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VidLink', lang: true, url: (t, i, s, e) => `https://vidlink.pro/${t}/${i}${s ? `/${s}/${e}` : ''}` },
   { name: 'VidGod', url: (t, i, s, e) => `https://vidgod.site/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=true` },
   { name: 'VideoEasy', url: (t, i, s, e) => `https://player.videasy.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
-  { name: 'VidCore', url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
-  { name: 'VidLinkMe', url: (t, i, s, e) => `https://vidlink.me/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  { name: 'VidCore', lang: true, url: (t, i, s, e) => `https://vidcore.net/${t}/${i}${s ? `/${s}/${e}` : ''}?autoplay=1` },
+  { name: 'VidLinkMe', lang: true, url: (t, i, s, e) => `https://vidlink.me/${t}/${i}${s ? `/${s}/${e}` : ''}` },
+  /* SuperEmbed — live multi-source aggregator with a subtitle/audio language
+     menu. Its API page (superembed.stream) returned a full player page with
+     subtitle support and no popup triggers; the direct host multiembed.mov is
+     the older iframe alias (403 to bots, fine in browsers). */
+  { name: 'SuperEmbed', lang: true, url: (t, i, s, e) => `https://superembed.stream/?video_id=${i}&tmdb=1${s ? `&season=${s}&episode=${e}` : ''}` },
   /* XPass, 2Embed and VidZen were removed after a fresh audit — their pages
      ship window.open / _blank ad triggers (VidZen literally opens a SMARTLINK
-     popunder). The six above are clean in their HTML AND JS bundles. */
+     popunder). The seven above are clean in their HTML AND JS bundles. */
 ];
 
 function resolveServers(type, id, season, episode) {
   /* sbx flag mirrors streamex.sh: only a few embeds need the sandbox attribute
      (most players refuse to boot under sandbox and show a 'sandbox' error) */
-  return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, sbx: !!s.sbx, url: s.url(type, id, season, episode) }));
+  return EMBED_SERVERS.map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, lang: !!s.lang, sbx: !!s.sbx, url: s.url(type, id, season, episode) }));
 }
 
 /* Build a concrete embed URL from an admin-managed pattern.
@@ -113,17 +121,28 @@ function resolveServers(type, id, season, episode) {
 function buildFromPattern(pattern, type, id, season, episode) {
   let u = String(pattern || '');
   const qIdx = u.indexOf('?');
-  const q = qIdx >= 0 ? u.slice(qIdx) : '';
+  let q = qIdx >= 0 ? u.slice(qIdx) : '';
   let base = qIdx >= 0 ? u.slice(0, qIdx) : u;
   base = base.replace(/\{type\}/g, type).replace(/\{id\}/g, id);
+  q = q.replace(/\{type\}/g, type).replace(/\{id\}/g, id);
+  const hasTok = /\{s\}|\{e\}/.test(base) || /\{s\}|\{e\}/.test(q);
   if (season != null && episode != null) {
-    if (base.includes('{s}') || base.includes('{e}')) {
+    if (hasTok) {
+      /* tokens may live in the path OR the query (e.g. SuperEmbed uses
+         ?video_id={id}&tmdb=1&season={s}&episode={e}) — substitute both */
       base = base.replace(/\{s\}/g, season).replace(/\{e\}/g, episode);
+      q = q.replace(/\{s\}/g, season).replace(/\{e\}/g, episode);
     } else {
       base = base.replace(/\/?$/, '') + '/' + season + '/' + episode;
     }
   } else {
-    base = base.replace(/\/?\{s\}\/?/g, '').replace(/\/?\{e\}\/?/g, '').replace(/\/+$/, '');
+    /* movie — strip any {s}/{e} tokens from the path (only when they existed:
+       a pattern like https://superembed.stream/ ends in a legit '/' that must
+       survive) and from query params */
+    if (/\{s\}|\{e\}/.test(base)) {
+      base = base.replace(/\/?\{s\}\/?/g, '').replace(/\/?\{e\}\/?/g, '').replace(/\/+$/, '');
+    }
+    q = q.replace(/([?&])[^=]*=\{s\}/g, '').replace(/([?&])[^=]*=\{e\}/g, '').replace(/^&/, '?');
   }
   return base + q;
 }
@@ -147,7 +166,7 @@ async function streamHandler(request, url, env, ctx) {
     } catch (_) {}
   }
   const servers = cfg.servers && cfg.servers.length
-    ? cfg.servers.filter(s => s.enabled !== false).map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, url: buildFromPattern(s.pattern, type, Number(id), season ? Number(season) : null, episode ? Number(episode) : null) }))
+    ? cfg.servers.filter(s => s.enabled !== false).map(s => ({ name: s.name, type: 'embed', rec: !!s.rec, lang: !!s.lang, url: buildFromPattern(s.pattern, type, Number(id), season ? Number(season) : null, episode ? Number(episode) : null) }))
     : resolveServers(type, Number(id), season ? Number(season) : null, episode ? Number(episode) : null);
   const body = { type, id: Number(id), season: season ? Number(season) : null, episode: episode ? Number(episode) : null, servers, resolvedAt: Date.now() };
   if (c && ctx) {

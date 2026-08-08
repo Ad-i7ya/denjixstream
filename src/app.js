@@ -1692,8 +1692,8 @@ async function viewWatch(params) {
     srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="muted">No playable sources found for this title right now. Try again later.</div></div>`;
     return;
   }
-  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
-    <div class="muted" style="font-size:12px;margin-top:10px">All ${servers.servers.length} servers are audited ad-free — the popup-cloaking ones (2Embed, XPass, VidZen) were removed after verification. The player blocks stray clicks until you tap “Enable player”. If a server refuses to play, just pick another one below.</div></div>`;
+  srv.innerHTML = `<div class="detail-panel"><h3>${icon('gear')} Servers</h3><div class="server-tabs scrollbar-hide" id="srvTabs">${servers.servers.map((s, i) => `<button class="server-tab ${s.rec ? 'active' : ''}" data-i="${i}">${s.rec ? '<span class="srv-dot rec"></span>' : ''}<span>${esc(s.name)}</span>${s.lang ? '<span class="srv-lang" title="Multi-language \u2014 switch audio & subtitles in the player">🌐</span>' : ''}${s.rec ? '<em class="srv-pick">★</em>' : ''}</button>`).join('')}</div>
+    <div class="muted" style="font-size:12px;margin-top:10px">All ${servers.servers.length} servers are audited ad-free — the popup-cloaking ones (2Embed, XPass, VidZen) were removed after verification. 🌐 = change language (audio + subtitles) \u00b7 if a server refuses to play, just pick another one below.</div></div>`;
   const tabs = $('#srvTabs');
   /* ---- Player: liquid-glass chrome + unique loading ring + error card (no black screen) ---- */
   const playerChrome = (s, loadingTxt) => `
