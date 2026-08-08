@@ -78,7 +78,7 @@ const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" fill="
    worker at build time and served from /logo.jpg — never fetched from an
    external host. The two-tone wordmark next to it is rendered as text so it
    stays razor-sharp at every size. */
-const LOGO_MARK = `<img class="logo-mark" src="/logo.jpg" alt="" aria-hidden="true" loading="eager" decoding="async">`;
+const LOGO_MARK = `<img class="logo-mark" src="/logo.jpg?v=3" alt="" aria-hidden="true" loading="eager" decoding="async">`;
 
 /* Apple-style wordmark — "Denji" in white, "Xstream" in the brand blue accent
    (generic: any name ending in xstream gets the two-tone treatment) */

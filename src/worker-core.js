@@ -432,9 +432,11 @@ export default {
     }
     if (path === '/favicon.png' || path === '/favicon.ico')
       return new Response(b64ToBytes(FAVICON_PNG), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
-    /* brand logo mark (embedded at build time — never fetched from an external host) */
+    /* brand logo mark (embedded at build time — never fetched from an external host).
+       Short max-age + versioned query in the app so a logo refresh is never stuck
+       behind a day-long edge cache. */
     if (path === '/logo.jpg' || path === '/logo')
-      return new Response(b64ToBytes(LOGO_B64), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+      return new Response(b64ToBytes(LOGO_B64), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' } });
     /* developer Telegram profile photos (embedded at build time) */
     if (path === '/avatars/kyren.jpg' || path === '/avatars/kyren')
       return new Response(b64ToBytes(AVATAR_KYREN), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' } });
