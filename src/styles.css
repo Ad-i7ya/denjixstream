@@ -1827,6 +1827,81 @@ body.ep-open { overflow: hidden; }
   contain-intrinsic-size: auto 180px;
 }
 
+/* ---------- Desktop: refined glass + Apple-minimal polish ----------
+   (1) The micro-blurs on the hundred-per-page chips still cost a blur sample
+   each on weaker desktop GPUs — halving their radius is visually identical
+   but ~4× cheaper to repaint. (2) Apple's minimalism: thin quiet scrollbars,
+   tight title tracking, springy focus rings, quiet hover lifts. Applied
+   without adding visual noise. */
+@media (pointer: fine) {
+  .chip, .server-tab, .btn-glass, .search-bar, .cat-tile.cat-decade,
+  .card .play-circle, .card .card-rating, .card .watch-flag,
+  .ep-card .thumb .num, .ep-thumb .ep-num, .row-nav, .pc-btn, .dev-chip,
+  .toast, .hero-dots, .ep-close, .contact-btn {
+    -webkit-backdrop-filter: blur(6px) saturate(135%);
+    backdrop-filter: blur(6px) saturate(135%);
+  }
+  /* thin, quiet scrollbars — visible only while scrolling */
+  * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); border: 3px solid transparent; background-clip: padding-box; }
+  /* cards breathe on hover — artwork zooms 1.06, border lights (Apple TV) */
+  .card img { transition: transform .55s var(--ease-smooth); }
+  .card:hover img { transform: scale(1.06); }
+  .card:hover { border-color: rgba(255,255,255,.22); }
+}
+/* quiet selection + keyboard focus rings */
+::selection { background: rgba(10,132,255,.32); color: #fff; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+a:focus-visible, button:focus-visible { outline-offset: 3px; }
+/* tighter Apple title tracking */
+.section-title, h1.page-title { letter-spacing: -.015em; }
+h1.page-title { letter-spacing: -.02em; }
+/* accent theming — the panel can restyle the brand blue; the default IS Apple
+   blue so color-mix keeps the current look until an admin overrides it. Each
+   rule keeps the original hardcoded gradient as a fallback declaration FIRST:
+   browsers without color-mix drop the invalid override and keep the classic
+   look (the primary CTA never loses its background) */
+.btn-primary { background: linear-gradient(180deg, #2f9bff 0%, #0a84ff 55%, #1a5bff 100%); }
+.btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff 18%), var(--accent) 55%, color-mix(in srgb, var(--accent) 76%, #000 24%));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 42%, transparent), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.pc-play { background: linear-gradient(180deg, #2f9bff, #0a84ff); }
+.pc-play { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff 18%), var(--accent)); box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.35); }
+.pc-progress .fill, .card .card-progress { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.spinner { border-top-color: var(--accent); }
+.announce-banner svg, .keys-head h3 svg { color: var(--accent); }
+
+/* ---------------- Panel-driven modes ---------------- */
+/* effects-lite: the whole cinematic layer (reveals, aurora drift, hero zoom,
+   route rise) flips to static — the panel can trade ambience for frames */
+body.effects-lite .reveal-ready { opacity: 1 !important; transform: none !important; transition: none !important; }
+body.effects-lite #aurora .au, body.effects-lite .hero-slide.active .backdrop,
+body.effects-lite .hero-slide.active .blob, body.effects-lite .main-scroll.view-enter,
+body.effects-lite #genreRows section { animation: none !important; }
+body.effects-lite .main-scroll.route-leaving { transition: none !important; transform: none !important; }
+/* glass-lite: every backdrop blur off — surfaces fall back to their own
+   translucent fills, which already carry the glass look on dark content */
+body.glass-lite * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+/* compact: tighter vertical rhythm — more content per scroll */
+body.compact .main-scroll { padding: 18px 24px 48px; }
+body.compact .hero { margin-bottom: 20px; }
+body.compact .section-head { margin-bottom: 10px; }
+body.compact .row { gap: 12px; }
+body.compact .grid { gap: 12px; }
+body.compact .detail-panel { padding: 16px; }
+/* the tab is backgrounded — freeze every CSS animation (aurora drift, hero
+   zoom, blob float, shimmer) so a hidden tab costs zero GPU work */
+body.page-hidden #aurora .au,
+body.page-hidden .hero-slide.active .backdrop,
+body.page-hidden .hero-slide.active .blob,
+body.page-hidden .skeleton { animation-play-state: paused !important; }
+/* the ambient aurora can be switched off from the panel */
+#aurora.hidden { display: none; }
+
 /* ---------- Touch / phone: liquid-glass lite ----------
    backdrop-filter re-samples the pixels behind an element on every repaint.
    The card chips (play button, rating, watch flag, episode number) exist by

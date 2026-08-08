@@ -188,7 +188,7 @@ const DAY_TTL = 365 * 86400;
 /* cfg is read on every beacon/siteconfig — cache per isolate for 30s */
 let cfgCache = { t: 0, v: null };
 async function siteConfig(env, fresh = false) {
-  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0', tagline: null, devs: null, heroTrailer: true, anime: true, siteName: null, hero: true, contactBtn: true, watchlist: true, history: true, legalText: null };
+  const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0', tagline: null, devs: null, heroTrailer: true, anime: true, siteName: null, hero: true, contactBtn: true, watchlist: true, history: true, legalText: null, rows: null, search: true, categories: true, movies: true, tv: true, report: true, epAutoOpen: true, epAutoplay: false, popupSweep: true, accent: null, aurora: true, glass: 'full', compact: false, effects: 'full', metaDesc: null, keywords: null, customCss: null, customJs: null, defaultRoute: 'home' };
   const kv = env.DENJIX_KV;
   if (!kv) return out;
   if (!fresh && cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
@@ -210,6 +210,28 @@ async function siteConfig(env, fresh = false) {
   out.history = m.history !== false;
   out.legalText = String(m.legalText || '').slice(0, 300) || null;
   if (Array.isArray(m.devs)) out.devs = m.devs.slice(0, 6).map(d => ({ name: String(d.name || '').slice(0, 40), handle: String(d.handle || '').replace(/^@/, '').slice(0, 40) })).filter(d => d.name && d.handle);
+  /* — full site control surface — */
+  const R = ['rowContinue', 'rowTrending', 'rowTrendingTv', 'rowPopular', 'rowTopRated', 'rowNowPlaying', 'rowUpcoming', 'rowGenres', 'rowGross', 'rowAiring'];
+  out.rows = {};
+  for (const k of R) out.rows[k] = m.rows ? m.rows[k] !== false : true;
+  out.search = m.search !== false;
+  out.categories = m.categories !== false;
+  out.movies = m.movies !== false;
+  out.tv = m.tv !== false;
+  out.report = m.report !== false;
+  out.epAutoOpen = m.epAutoOpen !== false;
+  out.epAutoplay = m.epAutoplay === true;
+  out.popupSweep = m.popupSweep !== false;
+  out.accent = /^#[0-9a-fA-F]{6}$/.test(String(m.accent || '')) ? String(m.accent).toLowerCase() : null;
+  out.aurora = m.aurora !== false;
+  out.glass = m.glass === 'lite' ? 'lite' : 'full';
+  out.compact = m.compact === true;
+  out.effects = m.effects === 'lite' ? 'lite' : 'full';
+  out.metaDesc = String(m.metaDesc || '').slice(0, 200) || null;
+  out.keywords = String(m.keywords || '').slice(0, 300) || null;
+  out.customCss = String(m.customCss || '').slice(0, 20000) || null;
+  out.customJs = String(m.customJs || '').slice(0, 20000) || null;
+  out.defaultRoute = ['home', 'movies', 'tv', 'anime', 'categories'].includes(m.defaultRoute) ? m.defaultRoute : 'home';
   cfgCache = { t: Date.now(), v: out };
   return out;
 }
@@ -349,7 +371,15 @@ async function serveApp(request, env, siteName, ctx) {
   // Built with concatenation (not a template literal) so inlined CSS/JS
   // containing backticks or ${...} can never break the worker.
   const c = cacheStore();
-  const cacheKey = 'app:' + siteName + ':' + BUILD_STAMP;
+  /* admin-driven meta tags (description/keywords) are read live and folded
+     into the cache key so a config change busts the served head instantly */
+  let metaDesc = null, keywords = null, cfgTag = '';
+  try {
+    const sc = await siteConfig(env);
+    metaDesc = sc.metaDesc; keywords = sc.keywords; cfgTag = (sc.metaDesc || '') + '|' + (sc.keywords || '');
+  } catch (_) {}
+  const cfgHash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  const cacheKey = 'app:' + siteName + ':' + BUILD_STAMP + ':' + cfgHash(cfgTag);
   if (c && request.method === 'GET') {
     try {
       const hit = await c.match(new Request(cacheKey, { method: 'GET' }));
@@ -361,7 +391,8 @@ async function serveApp(request, env, siteName, ctx) {
     '<meta charset="utf-8">\n' +
     '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">\n' +
     '<title>' + siteName + ' - Discover and Watch Movies &amp; TV Shows</title>\n' +
-    '<meta name="description" content="Discover and stream your favorite movies and TV shows in high quality. Free streaming site.">\n' +
+    '<meta name="description" content="' + (metaDesc || 'Discover and stream your favorite movies and TV shows in high quality. Free streaming site.') + '">\n' +
+    (keywords ? '<meta name="keywords" content="' + keywords + '">\n' : '') +
     '<meta name="theme-color" content="#121212">\n' +
     '<meta property="og:site_name" content="' + siteName + '">\n' +
     '<link rel="icon" href="data:image/svg+xml,' + encodeURIComponent(FAVICON) + '">\n' +

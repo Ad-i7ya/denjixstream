@@ -152,6 +152,21 @@ function matchRoute(hash) {
   }
   return { fn: () => { main.innerHTML = `<div class="empty-state"><h3>Page not found</h3><p class="muted">The page you requested doesn't exist.</p></div>`; }, params: {} };
 }
+/* admin panel can switch whole sections off — those routes show a glass
+   empty state instead of the page, and the nav/footer links are hidden */
+function routeDisabled(path) {
+  if (!siteCfg) return false;
+  if (path.startsWith('/browse/movie')) return siteCfg.movies === false;
+  if (path.startsWith('/browse/tv')) return siteCfg.tv === false;
+  if (path === '/browse') return siteCfg.movies === false && siteCfg.tv === false;
+  if (path.startsWith('/categories')) return siteCfg.categories === false;
+  if (path.startsWith('/search')) return siteCfg.search === false;
+  if (path.startsWith('/anime')) return siteCfg.anime === false;
+  return false;
+}
+function renderDisabled() {
+  main.innerHTML = `<div class="empty-state">${icon('sparkles')}<h3>This section is turned off</h3><p class="muted">The owner has disabled this page from the admin panel.</p><a class="btn btn-primary" style="margin-top:14px" href="#/">${icon('home')} Back to home</a></div>`;
+}
 function navigate(hash) { location.hash = hash; }
 let routeFirst = true;
 /* reduced-motion users get instant navigation — the CSS already zeroes the
@@ -184,7 +199,15 @@ async function router(restoreY) {
     if (tok !== routeTok) return; /* a newer navigation superseded this one */
   }
   const { fn, params } = matchRoute(location.hash || '#/');
-  fn(params);
+  const pNow = (location.hash || '#/').replace(/^#/, '').split('?')[0];
+  /* the bare Browse route defaults to Movies — if Movies is off but TV is on,
+     it must land on TV instead of silently showing a disabled section */
+  if (siteCfg && pNow === '/browse' && (siteCfg.movies === false || siteCfg.tv === false)) {
+    const to = siteCfg.movies === false && siteCfg.tv !== false ? '#/browse/tv'
+      : siteCfg.tv === false && siteCfg.movies !== false ? '#/browse/movie' : null;
+    if (to) { navigate(to); return; }
+  }
+  if (routeDisabled(pNow)) renderDisabled(); else fn(params);
   /* back/forward restores where the user left that page; new navigations land at
      top. rAF lets async rows paint first so a deep restore doesn't clamp to the
      skeleton height */
@@ -812,6 +835,8 @@ function bindHeroCarousel() {
     if (hero.dataset.hov === '1') return;
     stop(); timer = setInterval(next, bigScreen ? 6000 : 9000); heroTimer = timer;
   };
+  /* the tab-visibility handler restarts the carousel when the tab returns */
+  window.__heroStart = () => { if (!document.querySelector('.hero')) return; start(); };
   $('.hero-nav.next', hero)?.addEventListener('click', (e) => { e.stopPropagation(); next(); start(); });
   $('.hero-nav.prev', hero)?.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); start(); });
   dots.forEach(d => d.addEventListener('click', () => { show(+d.dataset.i); start(); }));
@@ -984,15 +1009,16 @@ async function viewHome() {
       <div class="row scrollbar-hide">${contItems.map(continueCard).join('')}</div>
     </div>
   </section>` : '';
+  const R = (k, v) => (siteCfg && siteCfg.rows && siteCfg.rows[k] === false ? '' : v);
   main.innerHTML = (siteCfg && siteCfg.hero === false ? '' : heroCarousel(heroItems)) +
-    contRow +
-    rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending') +
-    rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending') +
-    rowSection('Popular Movies', popular, '#/browse/movie') +
-    gridSection('Top Rated', topRated.slice(0, 10), '#/browse/movie?sort=top_rated') +
-    rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing') +
-    rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming') +
-    '<div id="genreRows"></div>' +
+    R('rowContinue', contRow) +
+    R('rowTrending', rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending')) +
+    R('rowTrendingTv', rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending')) +
+    R('rowPopular', rowSection('Popular Movies', popular, '#/browse/movie')) +
+    R('rowTopRated', gridSection('Top Rated', topRated.slice(0, 10), '#/browse/movie?sort=top_rated')) +
+    R('rowNowPlaying', rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing')) +
+    R('rowUpcoming', rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming')) +
+    (siteCfg && siteCfg.rows && siteCfg.rows.rowGenres === false ? '' : '<div id="genreRows"></div>') +
     footerNote();
   bindHeroCarousel();
   bindWatchlistButtons();
@@ -1010,6 +1036,7 @@ async function loadGenreRows() {
      each genre row now shows titles none of the previous rows claimed */
   const seen = new Set();
   const seenF = (m) => { const k = 'm' + m.id; if (!m || m.id == null || seen.has(k) || homeSeen.has(k)) return false; seen.add(k); return true; };
+  const gR = (k, p) => (siteCfg && siteCfg.rows && siteCfg.rows[k] === false ? Promise.resolve('') : p);
   const out = await Promise.all([
     genreRow('Action', 28, seenF),
     genreRow('Sci-Fi & Fantasy', 878, seenF),
@@ -1020,8 +1047,8 @@ async function loadGenreRows() {
     genreRow('Animation', 16, seenF),
     genreRow('Documentary', 99, seenF),
     genreRow('Drama', 18, seenF),
-    grossRow(),
-    airingRow(),
+    gR('rowGross', grossRow()),
+    gR('rowAiring', airingRow()),
   ]);
   box.innerHTML = out.join('');
   box.querySelectorAll('section').forEach((s, i) => s.style.animationDelay = (i * 55) + 'ms');
@@ -1478,7 +1505,7 @@ async function viewWatch(params) {
   const playerChrome = (s, loadingTxt) => `
     <div class="pl-top">
       <div class="pl-title"><span class="pl-mark">${LOGO_MARK.replace('logo-mark', 'pl-mark-svg')}</span><span class="pl-t">${esc(title)}</span>${epName ? `<em class="pl-ep">${esc(epName)}</em>` : ''}</div>
-      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span>${isTv ? `<button class="pl-fs" id="plEps" title="Episodes (E)">${icon('tv')}<b>${esc(epName || 'Eps')}</b></button>` : ''}<button class="pl-fs" id="plKeys" title="Keyboard shortcuts (?)">${icon('kbd')}<b>?</b></button><button class="pl-fs" id="plFs" title="Fullscreen (F)">${icon('fullscreen')}</button></div>
+      <div class="pl-right"><span class="pl-badge">${esc(s.name)}</span>${isTv && window.__px && window.__px.epAutoplay && window.__epNext ? `<button class="pl-fs" id="plNext" title="Play next episode">${icon('chevR')}<b>Next</b></button>` : ''}${isTv ? `<button class="pl-fs" id="plEps" title="Episodes (E)">${icon('tv')}<b>${esc(epName || 'Eps')}</b></button>` : ''}<button class="pl-fs" id="plKeys" title="Keyboard shortcuts (?)">${icon('kbd')}<b>?</b></button><button class="pl-fs" id="plFs" title="Fullscreen (F)">${icon('fullscreen')}</button></div>
     </div>
     <div class="pl-loading" id="plLoading"><div class="pl-ring"><i></i></div><div class="pl-loading-txt">${esc(loadingTxt || 'Connecting to ' + s.name)}</div></div>
     <div class="pl-err" id="plErr">
@@ -1559,6 +1586,7 @@ async function viewWatch(params) {
     $('#plRetry')?.addEventListener('click', (e) => { e.stopPropagation(); err.classList.remove('show'); hideLoading(); const f = $('#plFrame'); f.src = f.src; armShield(); loadTimer = setTimeout(() => { if (!loaded) showErr(); }, 14000); });
     $('#plFs')?.addEventListener('click', (e) => { e.stopPropagation(); plFullscreenToggle(); });
     $('#plEps')?.addEventListener('click', (e) => { e.stopPropagation(); epOpen && epCloseFn ? epCloseFn() : openEpOverlay(); });
+    $('#plNext')?.addEventListener('click', (e) => { e.stopPropagation(); const n = window.__epNext; if (n) navigate(`#/watch/tv/${n.id}/${n.season}/${n.episode}`); });
     /* set src only after the load listener is attached (no race → loading ring
        always resolves to either the video or the error card) */
     frame.src = s.url;
@@ -1571,7 +1599,7 @@ async function viewWatch(params) {
   /* streamex-style: the episode side panel is already open on TV shows.
      Guarded by getElementById so navigating away within the delay can't
      scroll-lock the next page (overlay is torn down by the router). */
-  if (isTv) setTimeout(() => { if (document.getElementById('epOverlay')) window.openEpOverlay && window.openEpOverlay(); }, 800);
+  if (isTv && (!window.__px || window.__px.epAutoOpen !== false)) setTimeout(() => { if (document.getElementById('epOverlay')) window.openEpOverlay && window.openEpOverlay(); }, 800);
 }
 
 /* ---------------- PLAYER KEYBOARD CONTROLS ---------------- */
@@ -1787,6 +1815,7 @@ function epOverlayItem(ep, tvId, season, curSeason, curEpisode) {
   </a>`;
 }
 async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
+  window.__epNext = null; /* never leak the previous show's next-episode target */
   const seasons = (d.seasons || []).filter(s => s.season_number > 0 && s.episode_count > 0);
   epSeasons = seasons;
   buildEpOverlay(id, curSeason, curEpisode);
@@ -1808,6 +1837,14 @@ async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
     if (n === curSeason) {
       const idx = data.episodes.findIndex(e => e.episode_number === curEpisode);
       if (idx >= 0 && row.children[idx] && row.children[idx].scrollIntoView) row.children[idx].scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
+      /* expose the next episode for the player's autoplay "Next" chip */
+      let nxt = null;
+      if (idx >= 0 && idx < data.episodes.length - 1) nxt = { id, season: n, episode: data.episodes[idx + 1].episode_number };
+      else {
+        const si = seasons.findIndex(s => s.season_number === n);
+        if (si >= 0 && si < seasons.length - 1) nxt = { id, season: seasons[si + 1].season_number, episode: 1 };
+      }
+      window.__epNext = nxt;
     }
   };
   el.querySelector('.season-tabs').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) load(+b.dataset.s); });
@@ -1922,6 +1959,7 @@ function buildSearchPopup() {
 }
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    if (siteCfg && siteCfg.search === false) return; /* search disabled from the panel */
     e.preventDefault();
     if (typeof window.openSearch !== 'function') buildSearchPopup();
     window.openSearch();
@@ -1943,6 +1981,32 @@ function beacon(ev, extra = {}) {
   } catch (_) {}
 }
 let siteCfg = null;
+let routeRedirected = false;
+let disabledRouted = false;
+/* custom CSS/JS injection + meta tags from the admin panel — id-based and
+   diff-guarded so the 15s heartbeat never re-injects or re-parses unchanged
+   code on the user's device */
+function injectCustom(kind, val, tag) {
+  const id = 'cst' + kind;
+  let el = document.getElementById(id);
+  if (!val || !val.trim()) { if (el) el.remove(); return; }
+  if (el && el.dataset.c === val) return;
+  if (el) el.remove();
+  el = document.createElement(tag);
+  el.id = id; el.dataset.c = val;
+  el.textContent = val;
+  (document.head || document.documentElement).appendChild(el);
+}
+function applyMeta(cfg) {
+  const set = (name, content) => {
+    if (!content || !content.trim()) return;
+    let m = document.querySelector('meta[name="' + name + '"]');
+    if (!m) { m = document.createElement('meta'); m.name = name; document.head.appendChild(m); }
+    if (m.getAttribute('content') !== content) m.setAttribute('content', content);
+  };
+  set('description', cfg.metaDesc);
+  set('keywords', cfg.keywords);
+}
 function applySiteConfig() {
   const cfg = siteCfg || {};
   const ann = cfg.announcement && cfg.announcement.enabled && cfg.announcement.text ? cfg.announcement : null;
@@ -2021,6 +2085,41 @@ function applySiteConfig() {
   const hc = $('#heroCaro');
   if (hc) hc.classList.toggle('hidden', cfg.hero === false);
   $$('.contact-btn').forEach(a => a.classList.toggle('hidden', cfg.contactBtn === false));
+  /* — full control surface from the panel — navigation + feature toggles */
+  $$('[data-nav="search"]').forEach(a => a.classList.toggle('hidden', cfg.search === false));
+  $$('[data-nav="categories"]').forEach(a => a.classList.toggle('hidden', cfg.categories === false));
+  $$('[data-nav="movie"]').forEach(a => a.classList.toggle('hidden', cfg.movies === false));
+  $$('[data-nav="tv"]').forEach(a => a.classList.toggle('hidden', cfg.tv === false));
+  $$('.foot-links a[href="#/search"]').forEach(a => a.classList.toggle('hidden', cfg.search === false));
+  $$('.foot-links a[href="#/categories"]').forEach(a => a.classList.toggle('hidden', cfg.categories === false));
+  $$('.foot-links a[href="#/browse/movie"]').forEach(a => a.classList.toggle('hidden', cfg.movies === false));
+  $$('.foot-links a[href="#/browse/tv"]').forEach(a => a.classList.toggle('hidden', cfg.tv === false));
+  $$('#reportBtn, #footReport').forEach(a => a.classList.toggle('hidden', cfg.report === false));
+  /* appearance: accent color, glass intensity, compact mode, effects level */
+  if (cfg.accent) document.documentElement.style.setProperty('--accent', cfg.accent);
+  document.body.classList.toggle('glass-lite', cfg.glass === 'lite');
+  document.body.classList.toggle('compact', !!cfg.compact);
+  document.body.classList.toggle('effects-lite', cfg.effects === 'lite');
+  const aur = $('#aurora'); if (aur) aur.classList.toggle('hidden', cfg.aurora === false);
+  /* custom CSS + JS + meta from the panel */
+  injectCustom('Css', cfg.customCss, 'style');
+  injectCustom('Js', cfg.customJs, 'script');
+  applyMeta(cfg);
+  /* landing route — only ever redirects the initial empty hash */
+  if (!routeRedirected && (!location.hash || location.hash === '#/' ) && cfg.defaultRoute && cfg.defaultRoute !== 'home') {
+    routeRedirected = true;
+    const LAND = { movies: '#/browse/movie', tv: '#/browse/tv', anime: '#/anime', categories: '#/categories' };
+    if (LAND[cfg.defaultRoute]) location.replace(LAND[cfg.defaultRoute]);
+  }
+  /* player behaviour flags consumed by the watch page */
+  window.__px = { epAutoOpen: cfg.epAutoOpen !== false, epAutoplay: !!cfg.epAutoplay, popupSweep: cfg.popupSweep !== false };
+  /* airtight route guard: if the page that just rendered got disabled by THIS
+     config load (first paint raced ahead of siteCfg), re-route once to the
+     glass disabled state */
+  if (!disabledRouted && routeDisabled((location.hash || '#/').replace(/^#/, '').split('?')[0])) {
+    disabledRouted = true;
+    router();
+  }
   /* footer legal line */
   if (cfg.legalText) $$('.foot-legal').forEach(p => { p.textContent = cfg.legalText; });
   let mo = $('#maintOverlay');
@@ -2083,6 +2182,8 @@ const sweepWins = new Set();
   const _open = window.open.bind(window);
   window.open = function (url, name, feats) {
     const w = _open(url, name, feats);
+    /* ad-policing fully off from the panel — windows still open normally */
+    if (window.__px && window.__px.popupSweep === false) return w;
     if (w && !w.closed && document.getElementById('plFrame') && Date.now() - allowPopupTs >= 2000 && popupBlocked(url)) {
       try { w.close(); } catch (_) {}
     }
@@ -2095,6 +2196,7 @@ const sweepWins = new Set();
    no-op on normal pages, so it costs nothing when no video is playing. */
 setInterval(() => {
   if (!document.getElementById('plFrame')) return;
+  if (window.__px && window.__px.popupSweep === false) return; /* ad-sweeper off from the panel */
   for (const w of sweepWins) { try { if (w && !w.closed) w.close(); } catch (_) {} }
   sweepWins.clear();
 }, 400);
@@ -2102,6 +2204,7 @@ window.addEventListener('popup', (e) => {
   const w = e && e.window;
   /* only police while a player is on screen — never during normal browsing */
   if (!document.getElementById('plFrame')) return;
+  if (window.__px && window.__px.popupSweep === false) return; /* ad-sweeper off from the panel */
   /* the Trailer button opens a real YouTube window 2s grace */
   if (Date.now() - allowPopupTs < 2000) return;
   const url = e && (e.url || '');
@@ -2118,7 +2221,11 @@ function boot() {
      and on a 15s heartbeat (the explicit /api/siteconfig GET is cache-bypassed) */
   setInterval(() => { if (!document.hidden) loadSiteConfig(); }, 15000);
   window.addEventListener('hashchange', loadSiteConfig);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadSiteConfig(); });
+  document.addEventListener('visibilitychange', () => {
+    document.body.classList.toggle('page-hidden', document.hidden);
+    if (document.hidden) { stopHeroTimer(); /* pause aurora/zoom animations via CSS */ }
+    else { loadSiteConfig(); if (window.__heroStart) window.__heroStart(); }
+  });
   try { if (!sessionStorage.getItem('dx_visited')) { sessionStorage.setItem('dx_visited', '1'); beacon('visit'); } } catch (_) {}
   /* presence heartbeat — a lightweight 'visit' ping every 60s while the tab is
      open & visible so the admin panel's online counts reflect true presence */
