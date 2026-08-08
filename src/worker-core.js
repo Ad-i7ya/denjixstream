@@ -492,7 +492,11 @@ async function serveApp(request, env, siteName, ctx) {
     '<script>window.SITE_NAME = ' + JSON.stringify(siteName) + ';window.__GATE = ' + JSON.stringify(gated ? { sk: env.TURNSTILE_SITE_KEY, active: true } : { active: false }) + ';</script>\n' +
     '<script>\n' + APP_JS + '\n</script>\n' +
     '</body>\n</html>';
-  const res = new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60', 'Vary': gated ? 'Cookie' : 'Accept-Encoding' } });
+  /* the gate variant must NEVER be cached (browser or edge): a stale cached
+     gate page is exactly how users end up stuck on a dead splash after the
+     widget succeeded. The passed variant keeps its short public cache. */
+  const cacheCtrl = gated && !passed ? 'no-store' : 'public, max-age=60';
+  const res = new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': cacheCtrl, 'Vary': gated ? 'Cookie' : 'Accept-Encoding' } });
   if (c && ctx && request.method === 'GET') {
     try { ctx.waitUntil(c.put(new Request(cacheKey, { method: 'GET' }), res.clone())); } catch (_) {}
   }
