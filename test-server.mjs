@@ -3,7 +3,7 @@
 import { createServer } from 'http';
 import worker from './worker.js';
 
-const env = { SITE_NAME: 'DenjiXstream' }; // add TMDB_API_KEY here to override
+const env = { SITE_NAME: 'KnightXstream' }; // add TMDB_API_KEY here to override
 const ctx = { waitUntil: () => {} };
 
 const server = createServer(async (req, res) => {

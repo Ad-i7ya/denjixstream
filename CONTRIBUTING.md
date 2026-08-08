@@ -1,4 +1,4 @@
-# Contributing to DenjiXstream
+# Contributing to KnightXstream
 
 Thanks for wanting to help! This is a small, self-contained project — a single-file
 Cloudflare Worker with a vanilla-JS frontend. Keep changes small, consistent and
@@ -20,7 +20,7 @@ tested.
 ## Workflow
 
 ```bash
-cd denjixstream
+cd knightxstream
 node build.js            # compile src/* → worker.js
 node test-server.mjs     # serve at http://localhost:8787
 ```

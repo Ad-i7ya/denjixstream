@@ -1,5 +1,5 @@
 /* ============================================================
-   DenjiXstream — Cloudflare Worker (streamex.sh-style)
+   KnightXstream — Cloudflare Worker (streamex.sh-style)
 
    The site is a pure frontend. This worker only does two things
    invisibly behind the scenes:
@@ -13,10 +13,10 @@
 
    OPTIONAL env vars (Dashboard → Settings → Variables and Secrets):
      TMDB_API_KEY   your own TheMovieDB API key (defaults to a public key)
-     SITE_NAME      site name shown in the logo (default DenjiXstream)
+     SITE_NAME      site name shown in the logo (default KnightXstream)
    ============================================================ */
 
-const DEFAULT_SITE_NAME = 'DenjiXstream';
+const DEFAULT_SITE_NAME = 'KnightXstream';
 const DEFAULT_TMDB_KEY  = '8265bd1679663a7ea12ac168da84d2e8'; // public tutorial key — replace with your own
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -157,7 +157,7 @@ async function streamHandler(request, url, env, ctx) {
 }
 
 /* ---------------- KV analytics + admin-driven site config ----------------
-   Shared with the private admin panel worker (denjixstream-admin) via a KV
+   Shared with the private admin panel worker (knightxstream-admin) via a KV
    namespace. The main site only ever WRITES day-blob events and READS the
    cfg key — admin panel controls (announcement, maintenance, server list)
    are applied here. KV free tier is ~1k writes/day, so every visitor event
@@ -189,7 +189,7 @@ const DAY_TTL = 365 * 86400;
 let cfgCache = { t: 0, v: null };
 async function siteConfig(env, fresh = false) {
   const out = { announcement: null, maintenance: false, statsEnabled: true, servers: null, serversRev: '0', tagline: null, devs: null, heroTrailer: true, anime: true, siteName: null, hero: true, contactBtn: true, watchlist: true, history: true, legalText: null, rows: null, search: true, categories: true, movies: true, tv: true, report: true, epAutoOpen: true, epAutoplay: false, popupSweep: true, accent: null, aurora: true, glass: 'full', compact: false, effects: 'full', metaDesc: null, keywords: null, customCss: null, customJs: null, defaultRoute: 'home' };
-  const kv = env.DENJIX_KV;
+  const kv = env.KNIGHTX_KV;
   if (!kv) return out;
   if (!fresh && cfgCache.v && Date.now() - cfgCache.t < 30000) return cfgCache.v;
   const m = await kvGet(kv, 'cfg', {});
@@ -236,7 +236,7 @@ async function siteConfig(env, fresh = false) {
   return out;
 }
 async function beaconHandler(request, env) {
-  const kv = env.DENJIX_KV;
+  const kv = env.KNIGHTX_KV;
   if (!kv) return json({ ok: false }, 503);
   const st = await siteConfig(env);
   if (!st.statsEnabled) return json({ ok: true, skipped: true });
@@ -258,7 +258,7 @@ async function beaconHandler(request, env) {
     conn: String(body.conn || '').slice(0, 12), mem: String(body.mem || '').slice(0, 8), cores: String(body.cores || '').slice(0, 8),
   };
   /* primary path: permanent event log in D1 (no caps, no TTL, survives every deploy) */
-  const d1 = env.DENJIX_D1;
+  const d1 = env.KNIGHTX_D1;
   if (d1) {
     try {
       if (!(await kvGet(kv, 'd1schema', 0))) {
@@ -324,16 +324,16 @@ async function reportHandler(request, env) {
     co: (request.headers.get('cf-ipcountry') || '').slice(0, 8), city: (request.headers.get('cf-ipcity') || '').slice(0, 60),
     cat, msg, contact: String(body.contact || '').slice(0, 120), page: String(body.page || '/').slice(0, 200), status: 'new',
   };
-  const d1 = env.DENJIX_D1;
+  const d1 = env.KNIGHTX_D1;
   if (d1) {
     try {
-      if (!(await kvGet(env.DENJIX_KV, 'd1reports', 0))) {
+      if (!(await kvGet(env.KNIGHTX_KV, 'd1reports', 0))) {
         await d1.batch([
           d1.prepare('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, ip TEXT, device TEXT, model TEXT, os TEXT, browser TEXT, country TEXT, city TEXT, cat TEXT, msg TEXT, contact TEXT, page TEXT, status TEXT)'),
           d1.prepare('CREATE INDEX IF NOT EXISTS idx_reports_ts ON reports(ts)'),
           d1.prepare('CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)'),
         ]);
-        await kvPut(env.DENJIX_KV, 'd1reports', 1);
+        await kvPut(env.KNIGHTX_KV, 'd1reports', 1);
       }
       await d1.prepare('INSERT INTO reports (ts, ip, device, model, os, browser, country, city, cat, msg, contact, page, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
         .bind(report.ts, report.ip, report.device, report.model, report.os, report.browser, report.co, report.city, report.cat, report.msg, report.contact, report.page, report.status)
@@ -341,9 +341,9 @@ async function reportHandler(request, env) {
       return json({ ok: true });
     } catch (_) { /* fall back to KV below */ }
   }
-  const list = await kvGet(env.DENJIX_KV, 'reports', []);
+  const list = await kvGet(env.KNIGHTX_KV, 'reports', []);
   list.unshift(report);
-  await kvPut(env.DENJIX_KV, 'reports', list.slice(0, 300));
+  await kvPut(env.KNIGHTX_KV, 'reports', list.slice(0, 300));
   return json({ ok: true });
 }
 

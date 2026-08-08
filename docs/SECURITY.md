@@ -1,6 +1,6 @@
 # Security & Ad-Proofing
 
-This document explains how DenjiXstream blocks ads **without** sandboxing the player,
+This document explains how KnightXstream blocks ads **without** sandboxing the player,
 why that design was chosen, and the audit policy that keeps the server list clean.
 
 ## Threat model

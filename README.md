@@ -1,11 +1,11 @@
-# DenjiXstream
+# KnightXstream
 
 > Free, ad-proof movie & TV streaming — an Apple **Liquid Glass** experience that runs entirely inside a **single Cloudflare Worker**. No server, no database, no monthly cost.
 
 | | |
 |---|---|
-| **Live site** | https://denjixstream.te4m1ord.workers.dev |
-| **Source** | https://github.com/Ad-i7ya/denjixstream |
+| **Live site** | https://knightxstream.te4m1ord.workers.dev |
+| **Source** | https://github.com/Ad-i7ya/knightxstream |
 | **Stack** | Cloudflare Workers · vanilla JS SPA · TheMovieDB (TMDB) API · localStorage |
 | **Contact** | [@te4m1ord](https://t.me/te4m1ord) (Denji) · [@kzr0x](https://t.me/kzr0x) (Kyren) |
 
@@ -72,17 +72,17 @@ exactly how streamex.sh works.
 - Footer credits the developers with Telegram profile photos.
 
 **Admin panel (private)**
-- A separate, **private** worker (`denjixstream-admin`) gives the owner full control:
+- A separate, **private** worker (`knightxstream-admin`) gives the owner full control:
   usage analytics (visitors, devices, OS, browsers, countries, top pages/titles/searches),
   live logs, embed-server management, announcement banner, maintenance mode, and account
   settings — behind a Google-style email+password sign-in. See
-  [denjixstream-admin](https://github.com/Ad-i7ya/denjixstream-admin) (private repo) and
+  [knightxstream-admin](https://github.com/Ad-i7ya/knightxstream-admin) (private repo) and
   [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Project layout
 
 ```
-denjixstream/
+knightxstream/
 ├── src/
 │   ├── worker-core.js      Worker engine: SPA shell + TMDB proxy + /api/stream
 │   ├── app.js              Frontend app: hash router, views, search, player, shield
@@ -100,7 +100,7 @@ denjixstream/
 ## Quick start
 
 ```bash
-cd denjixstream
+cd knightxstream
 node build.js            # compile src/* → worker.js
 node test-server.mjs     # serve locally at http://localhost:8787
 ```
@@ -135,8 +135,8 @@ Full instructions: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 The site ships a tiny telemetry beacon (`/api/beacon` — anonymous page/watched/search
 events) and reads admin-driven config (`/api/siteconfig`). Data lives in a **shared KV
-namespace** that the private **DenjiXstream Admin** worker administers. Deploying the
-admin panel: `cd denjixstream-admin && node build-admin.js && node deploy-admin.mjs`
+namespace** that the private **KnightXstream Admin** worker administers. Deploying the
+admin panel: `cd knightxstream-admin && node build-admin.js && node deploy-admin.mjs`
 (see the admin repo's README). The public worker degrades gracefully if KV is absent.
 
 ## Editing the stream servers
@@ -148,7 +148,7 @@ be blocked from a sandbox-free page).
 
 ## License
 
-[MIT](LICENSE) © 2026 Ad-i7ya (DenjiXstream).
+[MIT](LICENSE) © 2026 Ad-i7ya (KnightXstream).
 
 ## Legal
 

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **DenjiXstream** are documented here. The project uses
+All notable changes to **KnightXstream** are documented here. The project uses
 [Calendar Versioning](https://calver.org)-style releases (`YYYY.MM`) for simplicity,
 with patch numbers for hotfixes.
 

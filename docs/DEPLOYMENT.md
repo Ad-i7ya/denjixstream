@@ -1,6 +1,6 @@
 # Deployment
 
-DenjiXstream deploys to **Cloudflare Workers** — the free tier is plenty. There are
+KnightXstream deploys to **Cloudflare Workers** — the free tier is plenty. There are
 two ways: paste the single file into the dashboard (2 minutes), or use the
 one-command `deploy.mjs` script that also pushes to GitHub.
 
@@ -13,12 +13,12 @@ one-command `deploy.mjs` script that also pushes to GitHub.
 ## Option A — Dashboard (manual, 2 minutes)
 
 1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** →
-   **Create** → **Worker** → give it a name (e.g. `denjixstream`) → **Deploy**.
+   **Create** → **Worker** → give it a name (e.g. `knightxstream`) → **Deploy**.
 2. **Edit code** → delete the boilerplate → paste the **entire contents of
    `worker.js`** → **Save and deploy**.
 3. Optional — **Settings → Variables and Secrets**:
    - `TMDB_API_KEY` — your own TMDB key (defaults to a public tutorial key).
-   - `SITE_NAME` — brand shown in the logo (default `DenjiXstream`).
+   - `SITE_NAME` — brand shown in the logo (default `KnightXstream`).
 4. Visit your `*.workers.dev` URL. Done.
 
 ## Option B — Automatic (`node deploy.mjs`)
@@ -29,7 +29,7 @@ no wrangler, no prompts.
 ### 1. Prepare credentials
 
 ```bash
-cd denjixstream
+cd knightxstream
 cp .env.example .deploy.env
 ```
 
@@ -40,9 +40,9 @@ Fill in `.deploy.env` (it is gitignored — never commit it):
 | `GITHUB_TOKEN` | GitHub → Settings → Developer settings → Personal access tokens → *Fine-grained* PAT with **Contents: Read & write** on the repo (+ **Administration: Read & write** to auto-create it) |
 | `CF_API_TOKEN` | Cloudflare → My Profile → API Tokens → *Edit Cloudflare Workers* template |
 | `CF_ACCOUNT_ID` | Cloudflare → Workers & Pages → right sidebar (32 hex chars) |
-| `SITE_NAME` | Optional (default `DenjiXstream`) |
-| `REPO_NAME` | Optional (default `denjixstream`) |
-| `CF_WORKER_NAME` | Optional (default `denjixstream`) |
+| `SITE_NAME` | Optional (default `KnightXstream`) |
+| `REPO_NAME` | Optional (default `knightxstream`) |
+| `CF_WORKER_NAME` | Optional (default `knightxstream`) |
 
 ### 2. Build & deploy
 
@@ -58,26 +58,26 @@ Real environment variables always override `.deploy.env`.
 | Variable | Purpose | Default |
 |---|---|---|
 | `TMDB_API_KEY` | TMDB metadata access | public tutorial key |
-| `SITE_NAME` | Brand in the logo/wordmark | `DenjiXstream` |
+| `SITE_NAME` | Brand in the logo/wordmark | `KnightXstream` |
 | `GITHUB_TOKEN` | deploy.mjs only | — |
 | `CF_API_TOKEN` / `CF_ACCOUNT_ID` | deploy.mjs only | — |
-| `REPO_NAME` / `CF_WORKER_NAME` | deploy.mjs only | `denjixstream` |
-| `DENJIX_KV_ID` | shared analytics KV namespace (set by the admin deploy) | — |
+| `REPO_NAME` / `CF_WORKER_NAME` | deploy.mjs only | `knightxstream` |
+| `KNIGHTX_KV_ID` | shared analytics KV namespace (set by the admin deploy) | — |
 
 ## Admin panel (private)
 
-The private admin worker (`denjixstream-admin`) adds a shared **KV namespace** binding
+The private admin worker (`knightxstream-admin`) adds a shared **KV namespace** binding
 to this worker and a telemetry **beacon** (`/api/beacon`) plus admin-driven config
 (`/api/siteconfig`). Deploy it once with:
 
 ```bash
-cd denjixstream-admin            # separate repo (private on GitHub)
+cd knightxstream-admin            # separate repo (private on GitHub)
 cp .env.example .deploy.env      # GITHUB_TOKEN / CF_API_TOKEN / CF_ACCOUNT_ID
 node build-admin.js
 node deploy-admin.mjs            # creates the KV namespace, deploys admin worker + re-deploys this site
 ```
 
-`deploy-admin.mjs` writes `DENJIX_KV_ID` (and the generated `ADMIN_PASSWORD` /
+`deploy-admin.mjs` writes `KNIGHTX_KV_ID` (and the generated `ADMIN_PASSWORD` /
 `SESSION_SECRET`) back into `.deploy.env` — future `node deploy.mjs` runs keep the
 KV binding automatically. If KV is absent, the public site degrades gracefully
 (no beacon writes, default config).

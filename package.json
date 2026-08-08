@@ -1,5 +1,5 @@
 {
-  "name": "denjixstream",
+  "name": "knightxstream",
   "version": "1.0.0",
   "description": "Free, ad-proof movie & TV streaming — a single-file Cloudflare Worker with an Apple liquid-glass UI.",
   "type": "module",

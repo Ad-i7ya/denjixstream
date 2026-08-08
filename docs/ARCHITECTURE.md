@@ -1,6 +1,6 @@
 # Architecture
 
-DenjiXstream is a **single-file Cloudflare Worker**: one JavaScript module serves the
+KnightXstream is a **single-file Cloudflare Worker**: one JavaScript module serves the
 entire site — HTML, CSS, the frontend application, the TMDB metadata proxy and the
 embed-server engine. There is no backend, no database and no build output beyond the
 one file you deploy.
@@ -91,7 +91,7 @@ See [SECURITY.md](SECURITY.md) for the full threat model. Summary of layers:
 
 ## Admin panel & shared KV
 
-A separate **private** worker — `denjixstream-admin` (own repo) — administers this site
+A separate **private** worker — `knightxstream-admin` (own repo) — administers this site
 through a shared **KV** namespace (keys: `cfg`, `auth`, `day:YYYY-MM-DD` daily blobs):
 
 ```
