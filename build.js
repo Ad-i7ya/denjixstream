@@ -18,9 +18,11 @@ core = core.replace("'/*__APP_JS__*/'",  () => JSON.stringify(appjs));
 core = core.replace("'/*__BUILD__*/'",   () => JSON.stringify(Date.now().toString(36)));
 
 // Inline the developer Telegram profile photos as base64 (assets/kyren.jpg, assets/denji.jpg)
+// and the logo mark (assets/logo.jpg) — all served from this single worker.
 const b64 = (p) => readFileSync(join(root, 'assets', p)).toString('base64');
 core = core.replace("'/*__AVATAR_KYREN__*/'", () => JSON.stringify(b64('kyren.jpg')));
 core = core.replace("'/*__AVATAR_DENJI__*/'", () => JSON.stringify(b64('denji.jpg')));
+core = core.replace("'/*__LOGO__*/'",        () => JSON.stringify(b64('logo.jpg')));
 
 writeFileSync(join(root, 'worker.js'), core);
 

@@ -360,6 +360,8 @@ const BUILD_STAMP = '/*__BUILD__*/';
    build.js from assets/ (do not edit the placeholder lines) */
 const AVATAR_KYREN = '/*__AVATAR_KYREN__*/';
 const AVATAR_DENJI = '/*__AVATAR_DENJI__*/';
+/* logo mark (assets/logo.jpg) — inlined at build time, served from /logo.jpg */
+const LOGO_B64 = '/*__LOGO__*/';
 const b64ToBytes = (b64) => {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -428,6 +430,9 @@ export default {
     if (path === '/favicon.ico') {
       return new Response(FAVICON, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' } });
     }
+    /* brand logo mark (embedded at build time — never fetched from an external host) */
+    if (path === '/logo.jpg' || path === '/logo')
+      return new Response(b64ToBytes(LOGO_B64), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
     /* developer Telegram profile photos (embedded at build time) */
     if (path === '/avatars/kyren.jpg' || path === '/avatars/kyren')
       return new Response(b64ToBytes(AVATAR_KYREN), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' } });
