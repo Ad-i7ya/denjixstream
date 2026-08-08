@@ -721,6 +721,7 @@ function openReportModal() {
     </div>
     <div class="report-field"><label>Details</label><textarea id="reportMsg" rows="4" maxlength="1000" placeholder="Describe the problem — what happened, what you were watching…"></textarea></div>
     <div class="report-field"><label>Your contact <em class="muted">(optional)</em></label><input id="reportContact" maxlength="120" placeholder="Email or Telegram @handle so we can reply"></div>
+    ${window.__GATE && window.__GATE.active ? '<div class="report-field" id="reportTurnstile"><div class="cf-turnstile" data-sitekey="' + esc(window.__GATE.sk) + '" data-theme="dark"></div></div>' : ''}
     <button type="button" class="btn btn-primary" id="reportSend" style="width:100%;justify-content:center">${icon('check')} Send report</button>
   </div>`;
   document.body.appendChild(reportModal);
@@ -732,6 +733,15 @@ function openReportModal() {
     reportCat = b.dataset.cat;
     $$('.rcat', reportModal).forEach(x => x.classList.toggle('on', x === b));
   });
+  /* the gated page already loads Turnstile, but the normal page doesn't —
+     lazy-inject the API just for the modal so the widget renders */
+  if (reportModal.querySelector('.cf-turnstile') && typeof window.turnstile === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    s.async = true; s.defer = true;
+    s.onerror = () => { const box = reportModal.querySelector('#reportTurnstile'); if (box) box.style.display = 'none'; };
+    document.head.appendChild(s);
+  }
 }
 function closeReportModal() {
   if (!reportModal) return;
@@ -744,9 +754,19 @@ async function submitReport() {
   if (msg.length < 5) { toast('Please describe the problem (at least 5 characters).', 'error'); return; }
   const btn = $('#reportSend'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
+    /* when the gate is active, attach the Turnstile token (widget auto-fills a
+       hidden input; the in-page token also works). Verified visitors already
+       hold the dx_pass cookie, so the server lets the report through without
+       a second challenge — this is only a fallback for edge cases. */
+    let tok = '';
+    const h = reportModal && reportModal.querySelector('[name="cf-turnstile-response"]');
+    if (h && h.value) tok = h.value;
+    else if (typeof window.turnstile !== 'undefined') {
+      try { const w = reportModal && reportModal.querySelector('.cf-turnstile'); if (w && w.dataset.turnstileWidgetId) tok = window.turnstile.getResponse(w.dataset.turnstileWidgetId) || ''; } catch (_) {}
+    }
     const r = await fetch('/api/report', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cat: reportCat, msg, contact: $('#reportContact') ? $('#reportContact').value : '', page: location.hash || '/' }),
+      body: JSON.stringify({ cat: reportCat, msg, contact: $('#reportContact') ? $('#reportContact').value : '', page: location.hash || '/', token: tok }),
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok) { toast('✓ Report sent — thank you!', 'success'); closeReportModal(); }

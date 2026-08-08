@@ -83,6 +83,12 @@ async function deployCloudflare() {
   const bindings = [
     { name: 'TMDB_API_KEY', type: 'plain_text', text: process.env.TMDB_API_KEY || '8265bd1679663a7ea12ac168da84d2e8' },
     { name: 'SITE_NAME', type: 'plain_text', text: SITE_NAME },
+    /* Cloudflare Turnstile human-verification gate — both keys together
+       activate it; with neither (or only one) the gate stays inert and the
+       site behaves exactly as before. Get keys: dash.cloudflare.com →
+       Turnstile → Add Site (hostname: your workers.dev domain). */
+    ...(process.env.TURNSTILE_SITE_KEY ? [{ name: 'TURNSTILE_SITE_KEY', type: 'plain_text', text: process.env.TURNSTILE_SITE_KEY }] : []),
+    ...(process.env.TURNSTILE_SECRET_KEY ? [{ name: 'TURNSTILE_SECRET_KEY', type: 'plain_text', text: process.env.TURNSTILE_SECRET_KEY }] : []),
   ];
   /* shared analytics KV namespace (created by deploy-admin.mjs in
      knightxstream-admin) — without this the beacon /api/siteconfig

@@ -311,6 +311,16 @@ async function reportHandler(request, env) {
   if (now - (reportThrottle.get(ip) || 0) < 60000) return json({ error: 'You just sent a report — try again in a minute.' }, 429);
   let body = {};
   try { body = await request.json(); } catch (_) {}
+  /* when Turnstile is configured, reports must carry a valid widget token
+     (the gate's verify sets dx_pass — a gated visitor who passed also has
+     one, so report submissions only need the token when no cookie exists) */
+  if (gateActive(env)) {
+    const passed = !!readCookie(request, GATE_COOKIE);
+    if (!passed) {
+      const v = await turnstileVerify(String(body.token || '').slice(0, 2048), env.TURNSTILE_SECRET_KEY, request);
+      if (!v.success) return json({ error: 'Human verification failed. Please try again.', codes: v.codes }, 403);
+    }
+  }
   const cat = ['video', 'title', 'ads', 'broken', 'other'].includes(body.cat) ? body.cat : 'other';
   const msg = String(body.msg || '').trim().slice(0, 1000);
   if (msg.length < 5) return json({ error: 'Please describe the problem (at least 5 characters).' }, 400);
@@ -346,6 +356,71 @@ async function reportHandler(request, env) {
   await kvPut(env.KNIGHTX_KV, 'reports', list.slice(0, 300));
   return json({ ok: true });
 }
+
+/* ---------------- Turnstile human-verification gate ----------------
+   Optional whole-site gate powered by Cloudflare Turnstile (free). It is
+   completely inert unless BOTH TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY
+   are bound — with no keys the site behaves exactly as before.
+
+   Flow:
+     1. Visitor loads the app with no valid dx_pass cookie and keys present
+        → serveApp injects a tiny splash + Turnstile widget into the page.
+     2. The widget's token is POSTed to /api/gate/verify, which calls
+        siteverify with the secret. On success a signed dx_pass cookie is set
+        (30-day expiry) and the page is reloaded.
+     3. Every later visit carries dx_pass → the worker serves the normal
+        shell with NO gate, so verified browsers never see Turnstile again
+        (also true for hard refreshes).
+   The cookie is a plain short token (this is a frontend SPA — anything in the
+   page can be read; the gate only stops casual/bot traffic, it is not a
+   security boundary). */
+const GATE_COOKIE = 'dx_pass';
+const readCookie = (request, name) => {
+  const h = request.headers.get('cookie') || '';
+  const m = h.split(';').map(s => s.trim()).find(s => s.startsWith(name + '='));
+  return m ? decodeURIComponent(m.slice(name.length + 1)) : '';
+};
+/* POST https://challenges.cloudflare.com/turnstile/v0/siteverify
+   body: secret, response(token), remoteip, idempotency_key optional */
+const turnstileVerify = async (token, secret, request) => {
+  if (!secret || !token) return { success: false, codes: ['missing-input-response'] };
+  try {
+    const body = { secret, response: token, remoteip: request.headers.get('cf-connecting-ip') || '' };
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    return { success: j.success === true, codes: j['error-codes'] || [] };
+  } catch (_) {
+    return { success: false, codes: ['internal-error'] };
+  }
+};
+const gateActive = (env) => !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY);
+/* the gate HTML injected only when needed (see serveApp) — splash + widget */
+const GATE_SK = '/*__GATE_SK__*/'; /* build-time placeholder: never "0x…"-aware, replaced by serveApp */
+function gateHTML(siteName, sk) {
+  return `\n<div id="kxGate">\n  <div class="kxg-card">\n    <div class="kxg-logo"><img src="/logo.jpg?v=3" alt="" aria-hidden="true"></div>\n    <h1>${String(siteName || 'KnightXstream').replace(/</g, '&lt;')}</h1>\n    <p class="kxg-sub">Verifying you're human…</p>\n    <div class="kxg-spin"><i></i><i></i><i></i></div>\n    <div class="cf-turnstile" data-sitekey="${sk}" data-theme="dark" data-callback="window.__kxGateDone"></div>\n    <p class="kxg-err" id="kxgErr" hidden>Something went wrong. <button onclick="window.__kxGateRetry()">Retry</button></p>\n  </div>\n</div>\n<style>\n#kxGate{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 120% at 50% 0%,#0d0d15 0%,#050508 60%);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}\n#kxGate .kxg-card{display:flex;flex-direction:column;align-items:center;gap:14px;padding:38px 46px;border-radius:26px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.6);backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);text-align:center;max-width:min(92vw,420px)}\n#kxGate .kxg-logo{width:72px;height:72px;border-radius:22px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.18)}\n#kxGate .kxg-logo img{width:100%;height:100%;object-fit:cover;display:block}\n#kxGate h1{font:700 24px/1.2 -apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;color:#f5f5f7;margin:0}\n#kxGate .kxg-sub{color:#8a8a9a;font:500 13.5px/1.5 -apple-system,'SF Pro Text','Segoe UI',sans-serif;margin:0}\n#kxGate .kxg-spin{display:flex;gap:7px;margin:6px 0 2px}\n#kxGate .kxg-spin i{width:9px;height:9px;border-radius:50%;background:#0a84ff;opacity:.25;animation:kxgp 1.1s ease-in-out infinite}\n#kxGate .kxg-spin i:nth-child(2){animation-delay:.18s}\n#kxGate .kxg-spin i:nth-child(3){animation-delay:.36s}\n@keyframes kxgp{0%,100%{opacity:.22;transform:translateY(0)}50%{opacity:1;transform:translateY(-5px)}}\n#kxGate .kxg-err{color:#ff9f9f;font:500 13px -apple-system,'SF Pro Text',sans-serif;margin:0}\n#kxGate .kxg-err button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:4px 14px;font:600 12.5px inherit;cursor:pointer;margin-left:6px}\n#kxGate .cf-turnstile{transform:scale(.92);margin:2px 0 0}\n@media (max-width:480px){#kxGate .kxg-card{padding:30px 24px;border-radius:22px}}\n@media (prefers-reduced-motion:reduce){#kxGate .kxg-spin i{animation:none;opacity:.6}}\n</style>`;
+}
+/* gate script — only injected for visitors without the pass cookie. It renders
+   the Turnstile widget, posts the token to /api/gate/verify, then reloads so
+   the app boots with the cookie in place (refresh = no gate ever again). */
+const GATE_JS = `\n<script>\n(function(){\n  var tries=0;
+  function done(){ try{ setTimeout(function(){ location.reload(); }, 250); }catch(e){ location.reload(); } }\n  window.__kxGateDone=function(token){\n    fetch('/api/gate/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})})\n      .then(function(r){ if(r.ok){ done(); } else { fail(); } })\n      .catch(fail);\n  };
+  function fail(){ var e=document.getElementById('kxgErr'); if(e){ e.hidden=false; } var s=document.getElementById('kxgSpin'); if(s){ s.style.display='none'; } }
+  window.__kxGateRetry=fail;
+  function load(){\n    if(typeof window.turnstile!=='undefined' && document.querySelector('.cf-turnstile') && !document.querySelector('.cf-turnstile iframe')){
+      try{ window.turnstile.render('.cf-turnstile'); }catch(e){}
+    }
+  }
+  var s=document.createElement('script');
+  s.src='https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__kxGateLoad';
+  s.async=true; s.defer=true;
+  window.__kxGateLoad=load;
+  s.onerror=fail;
+  document.head.appendChild(s);
+})();\n</script>`;
 
 /* favicon mirrors the Aurora X mark, brightened for tiny sizes */
 const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ac8fa"/><stop offset=".5" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient><linearGradient id="fhi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="fglo" cx=".32" cy=".26" r="1.05"><stop offset="0" stop-color="#5ac8fa" stop-opacity=".6"/><stop offset=".5" stop-color="#0a84ff" stop-opacity=".25"/><stop offset="1" stop-color="#bf5af2" stop-opacity="0"/></radialGradient></defs><rect x="3" y="3" width="58" height="58" rx="16.5" fill="#101019"/><rect x="3" y="3" width="58" height="58" rx="16.5" fill="url(#fglo)"/><rect x="3" y="3" width="58" height="58" rx="16.5" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/><path d="M9.5 16.5C9.5 11.9 13.4 8 18 8h28c4.6 0 8.5 3.9 8.5 8.5v5H9.5v-5Z" fill="url(#fhi)"/><path d="M21.5 20.5L42.5 43.5M42.5 20.5L21.5 43.5" stroke="url(#fg)" stroke-width="9.5" stroke-linecap="round"/><path d="M28.8 26.6V37.4L36.8 32Z" fill="#fff" stroke="#fff" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="31" cy="14" r="2.1" fill="#5ac8fa" opacity=".95"/></svg>';
@@ -383,7 +458,14 @@ async function serveApp(request, env, siteName, ctx) {
     metaDesc = sc.metaDesc; keywords = sc.keywords; cfgTag = (sc.metaDesc || '') + '|' + (sc.keywords || '');
   } catch (_) {}
   const cfgHash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
-  const cacheKey = 'app:' + siteName + ':' + BUILD_STAMP + ':' + cfgHash(cfgTag);
+  const gated = gateActive(env);
+  /* a verified browser (dx_pass cookie present) gets the NORMAL shell — no
+     splash, no widget, ever again (hard refresh included). Others get the
+     gate variant. The cookie state is folded into the cache key + a Vary
+     header so the edge cache can never serve the gated page to someone who
+     already passed, or vice versa. */
+  const passed = gated && !!readCookie(request, GATE_COOKIE);
+  const cacheKey = 'app:' + siteName + ':' + BUILD_STAMP + ':' + cfgHash(cfgTag) + ':' + (gated ? (passed ? 'p' : 'g') : 'o');
   if (c && request.method === 'GET') {
     try {
       const hit = await c.match(new Request(cacheKey, { method: 'GET' }));
@@ -410,10 +492,15 @@ async function serveApp(request, env, siteName, ctx) {
     '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">\n' +
     '<style>\n' + STYLES + '\n</style>\n' +
     '</head>\n<body>\n' +
-    '<script>window.SITE_NAME = ' + JSON.stringify(siteName) + ';</script>\n' +
+    /* the gate (if active + this visitor hasn't passed yet) mounts OVER the
+       app and reloads once verified — verified visitors never see this */
+    (gated && !passed ? gateHTML(siteName, env.TURNSTILE_SITE_KEY) + GATE_JS : '') +
+    /* the app can re-check gating (e.g. the report modal shows a Turnstile
+       widget only when the gate is active and no pass cookie exists yet) */
+    '<script>window.SITE_NAME = ' + JSON.stringify(siteName) + ';window.__GATE = ' + JSON.stringify(gated ? { sk: env.TURNSTILE_SITE_KEY, active: true } : { active: false }) + ';</script>\n' +
     '<script>\n' + APP_JS + '\n</script>\n' +
     '</body>\n</html>';
-  const res = new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60' } });
+  const res = new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60', 'Vary': gated ? 'Cookie' : 'Accept-Encoding' } });
   if (c && ctx && request.method === 'GET') {
     try { ctx.waitUntil(c.put(new Request(cacheKey, { method: 'GET' }), res.clone())); } catch (_) {}
   }
@@ -445,6 +532,22 @@ export default {
     if (path.startsWith('/api/tmdb/')) return tmdbHandler(request, url, env, ctx);
     if (path === '/api/stream') return streamHandler(request, url, env, ctx);
     if (path === '/api/beacon' && request.method === 'POST') return beaconHandler(request, env);
+    /* Turnstile gate — verify the widget token, then set the pass cookie.
+       Only exists when the keys are configured; otherwise 404 (inert). */
+    if (path === '/api/gate/verify' && request.method === 'POST') {
+      if (!gateActive(env)) return json({ error: 'not found' }, 404);
+      let token = '';
+      try { const b = await request.json(); token = String(b.token || '').slice(0, 2048); } catch (_) {}
+      const v = await turnstileVerify(token, env.TURNSTILE_SECRET_KEY, request);
+      if (!v.success) return json({ error: 'Verification failed. Please try again.', codes: v.codes }, 403);
+      /* short token (this is a frontend SPA; the gate stops casual bots only) */
+      const cookie = GATE_COOKIE + '=' + encodeURIComponent('v1.' + Date.now().toString(36)) +
+        '; Path=/; Max-Age=' + (30 * 86400) + '; SameSite=Lax';
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Set-Cookie': cookie, 'Cache-Control': 'no-store' },
+      });
+    }
     if (path === '/api/report' && request.method === 'POST') return reportHandler(request, env);
     if (path === '/api/siteconfig') return json(await siteConfig(env, true)); /* explicit GET always fresh — admin controls feel live */
     if (path.startsWith('/api/')) return json({ error: 'not found' }, 404);
