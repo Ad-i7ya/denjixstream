@@ -127,10 +127,12 @@ iframe, video { max-width: 100%; }
 }
 @media (pointer: fine) {
   /* the nav drifts at a fraction of the page scroll — a gentle parallax lag
-     behind the transparent pane (phones keep native feel, zero drift) */
+     behind the transparent pane (phones keep native feel, zero drift). No
+     will-change: the transform updates every frame anyway, and promoting a
+     full-height scroll container as a permanent layer would waste memory
+     even while the sidebar is collapsed. */
   .side-scroll {
     transform: translateY(calc(var(--sby, 0px) * 0.028));
-    will-change: transform;
   }
 }
 .sidebar.collapsed { transform: translateX(calc(-1 * var(--sbw, 264px))); }
