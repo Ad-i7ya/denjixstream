@@ -264,6 +264,9 @@ async function router(restoreY) {
     await new Promise(r => setTimeout(r, 165));
     if (tok !== routeTok) return; /* a newer navigation superseded this one */
   }
+  /* per-view listener lifecycle: any window/document listener a view attaches
+     with { signal: viewAbort.signal } is torn down before the next render */
+  viewAbort.abort(); viewAbort = new AbortController();
   const { fn, params } = matchRoute(location.hash || '#/');
   const pNow = (location.hash || '#/').replace(/^#/, '').split('?')[0];
   /* the bare Browse route defaults to Movies — if Movies is off but TV is on,
@@ -478,6 +481,7 @@ document.body.appendChild(aurora);
   apply();
 })();
 let routeTok = 0;
+let viewAbort = new AbortController();
 /* the floating home chip is redundant at the very top (the sidebar and mobile
    nav already have Home buttons there) — it stays tucked away until the user
    scrolls down, then pops out so there is always a way back home */
@@ -2069,17 +2073,18 @@ function viewNotFound() {
     scene.style.transform = `perspective(900px) rotateX(${cy.toFixed(2)}deg) rotateY(${cx.toFixed(2)}deg)`;
     raf = requestAnimationFrame(step);
   };
-  /* cache the box once per enter (re-read on resize) — no layout read per move */
+  /* cache the box once per enter (re-read on resize) — no layout read per move.
+     All listeners ride viewAbort so they die on route change (no leaks). */
   const setRect = () => { rect = wrap.getBoundingClientRect(); };
-  wrap.addEventListener('pointerenter', setRect);
-  window.addEventListener('resize', setRect);
+  wrap.addEventListener('pointerenter', setRect, { signal: viewAbort.signal });
+  window.addEventListener('resize', setRect, { signal: viewAbort.signal });
   wrap.addEventListener('pointermove', (e) => {
     if (!rect) setRect();
     tx = ((e.clientX - rect.left) / rect.width - 0.5) * 7;
     ty = -((e.clientY - rect.top) / rect.height - 0.5) * 7;
     if (!raf) raf = requestAnimationFrame(step);
   });
-  wrap.addEventListener('pointerleave', () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(step); });
+  wrap.addEventListener('pointerleave', () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(step); }, { signal: viewAbort.signal });
 }
 
 function viewInfo() {
