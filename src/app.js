@@ -695,10 +695,10 @@ function progressFlag(m) {
   const pct = clamp((p.time / p.duration) * 100, 0, 100);
   return `<div class="card-progress" style="width:${pct}%"></div>${pct > 85 ? '<div class="watch-flag">✓ Watched</div>' : ''}`;
 }
-function rowSection(title, items, viewAll) {
+function rowSection(title, items, viewAll, seq) {
   if (!items || !items.length) return '';
   return `<section style="margin-bottom:22px">
-    <div class="section-head"><h2 class="section-title">${esc(title)}</h2>${viewAll ? `<a class="view-all" href="${viewAll}">View all →</a>` : ''}</div>
+    <div class="section-head"><h2 class="section-title">${seq ? `<span class="row-seq">${String(seq).padStart(2, '0')}</span>` : ''}${esc(title)}</h2>${viewAll ? `<a class="view-all" href="${viewAll}">View all →</a>` : ''}</div>
     <div class="row-wrap">
       <button class="row-nav prev" aria-label="Scroll left">${icon('chevL')}</button>
       <button class="row-nav next" aria-label="Scroll right">${icon('chevR')}</button>
@@ -706,13 +706,20 @@ function rowSection(title, items, viewAll) {
     </div>
   </section>`;
 }
-function gridSection(title, items, viewAll) {
+function gridSection(title, items, viewAll, seq) {
   if (!items || !items.length) return '';
   return `<section style="margin-bottom:26px">
-    <div class="section-head"><h2 class="section-title">${esc(title)}</h2>${viewAll ? `<a class="view-all" href="${viewAll}">View all →</a>` : ''}</div>
+    <div class="section-head"><h2 class="section-title">${seq ? `<span class="row-seq">${String(seq).padStart(2, '0')}</span>` : ''}${esc(title)}</h2>${viewAll ? `<a class="view-all" href="${viewAll}">View all →</a>` : ''}</div>
     <div class="grid">${items.map(m => backdropCard(m, { grid: true })).join('')}</div>
   </section>`;
 }
+/* the quiet cinema ticker under the hero — two identical halves translate for
+   a seamless loop; the animation itself lives in CSS (transform-only) */
+const TICKER_ITEMS = ['Trending Now', 'Now Playing', 'Upcoming', 'Top Rated', 'New Releases', 'Popular', 'Airing Today'];
+const tickerHTML = () => {
+  const half = TICKER_ITEMS.map(t => `<span>${esc(t)}<em>·</em></span>`).join('');
+  return `<div class="ticker" aria-hidden="true"><div class="ticker-track">${half}${half}</div></div>`;
+};
 /* Hero slideshow — auto-rotating featured titles with crossfade, dots + arrows,
    pause on hover, touch swipe. Stays compact so thumbnails never feel huge. */
 function heroSlide(m, i) {
@@ -942,6 +949,7 @@ function bindRowNavs() {
 let revealIO = null;
 let revealDirty = false;
 function bindReveals() {
+  if (document.body.classList.contains('px-sda')) return; /* scroll-driven CSS owns in/out */
   if (!('IntersectionObserver' in window)) return;
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (!revealIO) revealIO = new IntersectionObserver((ents) => ents.forEach((en) => {
@@ -1011,13 +1019,14 @@ async function viewHome() {
   </section>` : '';
   const R = (k, v) => (siteCfg && siteCfg.rows && siteCfg.rows[k] === false ? '' : v);
   main.innerHTML = (siteCfg && siteCfg.hero === false ? '' : heroCarousel(heroItems)) +
+    tickerHTML() +
     R('rowContinue', contRow) +
-    R('rowTrending', rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending')) +
-    R('rowTrendingTv', rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending')) +
-    R('rowPopular', rowSection('Popular Movies', popular, '#/browse/movie')) +
-    R('rowTopRated', gridSection('Top Rated', topRated.slice(0, 10), '#/browse/movie?sort=top_rated')) +
-    R('rowNowPlaying', rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing')) +
-    R('rowUpcoming', rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming')) +
+    R('rowTrending', rowSection('Trending Now', trendingMovie, '#/browse/movie?sort=trending', 1)) +
+    R('rowTrendingTv', rowSection('Trending TV Shows', trendingTv, '#/browse/tv?sort=trending', 2)) +
+    R('rowPopular', rowSection('Popular Movies', popular, '#/browse/movie', 3)) +
+    R('rowTopRated', gridSection('Top Rated', topRated.slice(0, 10), '#/browse/movie?sort=top_rated', 4)) +
+    R('rowNowPlaying', rowSection('Now Playing', nowPlaying, '#/browse/movie?sort=now_playing', 5)) +
+    R('rowUpcoming', rowSection('Upcoming', upcoming, '#/browse/movie?sort=upcoming', 6)) +
     (siteCfg && siteCfg.rows && siteCfg.rows.rowGenres === false ? '' : '<div id="genreRows"></div>') +
     footerNote();
   bindHeroCarousel();
@@ -1051,7 +1060,7 @@ async function loadGenreRows() {
     gR('rowAiring', airingRow()),
   ]);
   box.innerHTML = out.join('');
-  box.querySelectorAll('section').forEach((s, i) => s.style.animationDelay = (i * 55) + 'ms');
+  if (!document.body.classList.contains('px-sda')) box.querySelectorAll('section').forEach((s, i) => s.style.animationDelay = (i * 55) + 'ms');
 }
 async function genreRow(title, gid, seenF) {
   const r = await api(`/discover/movie?language=en-US&with_genres=${gid}&sort_by=popularity.desc`).catch(() => null);
@@ -2007,6 +2016,20 @@ function applyMeta(cfg) {
   set('description', cfg.metaDesc);
   set('keywords', cfg.keywords);
 }
+/* scroll-driven whole-page parallax — enabled only when the engine supports
+   animation-timeline: view(), the pointer is fine (matches the CSS gate) and
+   motion is allowed. CSS owns the effect; JS flips the body class so older
+   engines and touch devices keep the classic reveal system. The admin panel's
+   effects toggle can switch it off (Lite) AND back on (Full). */
+function pxSdaOK() {
+  return !!(window.CSS && window.CSS.supports && window.CSS.supports('animation-timeline', 'view()')
+    && window.matchMedia && window.matchMedia('(pointer: fine)').matches
+    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function syncPxSda(effects) {
+  const e = effects !== undefined ? effects : (siteCfg && siteCfg.effects);
+  document.body.classList.toggle('px-sda', pxSdaOK() && e !== 'lite');
+}
 function applySiteConfig() {
   const cfg = siteCfg || {};
   const ann = cfg.announcement && cfg.announcement.enabled && cfg.announcement.text ? cfg.announcement : null;
@@ -2100,6 +2123,7 @@ function applySiteConfig() {
   document.body.classList.toggle('glass-lite', cfg.glass === 'lite');
   document.body.classList.toggle('compact', !!cfg.compact);
   document.body.classList.toggle('effects-lite', cfg.effects === 'lite');
+  syncPxSda(cfg.effects); /* panel can turn the scroll parallax off AND back on */
   const aur = $('#aurora'); if (aur) aur.classList.toggle('hidden', cfg.aurora === false);
   /* custom CSS + JS + meta from the panel */
   injectCustom('Css', cfg.customCss, 'style');
@@ -2212,6 +2236,7 @@ window.addEventListener('popup', (e) => {
   e.preventDefault && e.preventDefault();
 });
 function boot() {
+  syncPxSda();
   initSmoothScroll();
   buildSearchPopup();
   new MutationObserver(() => { bindRowNavs(); scheduleReveals(); }).observe(main, { childList: true, subtree: true });

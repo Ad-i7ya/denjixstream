@@ -1898,9 +1898,86 @@ body.compact .detail-panel { padding: 16px; }
 body.page-hidden #aurora .au,
 body.page-hidden .hero-slide.active .backdrop,
 body.page-hidden .hero-slide.active .blob,
-body.page-hidden .skeleton { animation-play-state: paused !important; }
+body.page-hidden .skeleton,
+body.page-hidden .ticker-track { animation-play-state: paused !important; }
 /* the ambient aurora can be switched off from the panel */
 #aurora.hidden { display: none; }
+
+/* ---------------- Whole-page scroll parallax (scroll-driven) ----------------
+   Modern browsers animate every section directly on the compositor as it
+   passes through the viewport — each row/grid/panel rises in as it enters
+   and RECEDES (translate + slight scale + fade) as it exits, so the whole
+   page visibly moves out while scrolling (harsh-veins style). Zero JS, zero
+   per-frame layout — the browser maps scroll position to the keyframes.
+   Desktop-only (pointer: fine), off for reduced-motion and the panel's
+   effects-lite mode. The hero is excluded: it already has its own scroll-out
+   collapse + backdrop drift. body.px-sda is added by JS only when the
+   browser supports animation-timeline: view(), so older engines keep the
+   classic reveal system untouched. */
+@supports (animation-timeline: view()) {
+  @media (pointer: fine) {
+    body.px-sda #main > section:not(.hero),
+    body.px-sda #main > .grid,
+    body.px-sda #genreRows section {
+      animation: px-cycle linear both;
+      animation-timeline: view();
+    }
+    @keyframes px-cycle {
+      0%   { transform: translateY(56px); opacity: 0; }
+      14%  { transform: translateY(0); opacity: 1; }
+      74%  { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(-46px) scale(.985); opacity: .42; }
+    }
+    /* the watch page's info panels are primary content — they sit below the
+       player and can already be partially in view at load, so they must never
+       dim on first paint. They only get the gentle recede, with opacity held
+       at 1 for the first half of the pass. */
+    body.px-sda .detail-panel {
+      animation: px-recede linear both;
+      animation-timeline: view();
+    }
+    @keyframes px-recede {
+      0%   { transform: none; opacity: 1; }
+      55%  { transform: none; opacity: 1; }
+      100% { transform: translateY(-30px); opacity: .55; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body.px-sda #main > section, body.px-sda #main > .grid,
+      body.px-sda #genreRows section, body.px-sda .detail-panel { animation: none; }
+    }
+  }
+}
+body.effects-lite #main > section, body.effects-lite #main > .grid,
+body.effects-lite #genreRows section, body.effects-lite .detail-panel { animation: none !important; }
+
+/* ---------------- Cinema ticker (harsh-veins marquee borrow) ----------------
+   A quiet slow-motion strip under the hero — duplicated content scrolling at
+   a constant speed on the compositor (transform-only), masked at the edges
+   so it fades in/out of the page. The accent dot separators echo the site
+   wordmark. Static for reduced-motion and effects-lite. */
+.ticker {
+  overflow: hidden; position: relative;
+  margin: -6px 0 24px; padding: 10px 0;
+  border-top: 1px solid rgba(255,255,255,.055);
+  border-bottom: 1px solid rgba(255,255,255,.055);
+  user-select: none; -webkit-user-select: none;
+}
+.ticker-track { pointer-events: none; }
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+}
+.ticker-track { display: flex; width: max-content; animation: ticker 48s linear infinite; }
+.ticker span { font-size: 12px; font-weight: 600; letter-spacing: .24em; color: var(--text-muted); white-space: nowrap; padding-right: 10px; }
+.ticker span em { font-style: normal; color: var(--accent); padding: 0 7px; letter-spacing: 0; }
+@keyframes ticker { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .ticker-track { animation: none; } }
+body.effects-lite .ticker-track { animation: none; }
+/* editorial row numbering — a quiet accent index before each section title */
+.section-title .row-seq {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  color: var(--accent); opacity: .85; margin-right: 10px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- Touch / phone: liquid-glass lite ----------
    backdrop-filter re-samples the pixels behind an element on every repaint.
