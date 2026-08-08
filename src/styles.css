@@ -93,9 +93,11 @@ iframe, video { max-width: 100%; }
 /* Sidebar — layered liquid glass, draggable width (Apple drawer) */
 .sidebar {
   width: var(--sbw, 264px);
+  /* transparent frost — the aurora + page parallax glow straight through the
+     pane, so scrolling shows depth through the glass */
   background:
-    radial-gradient(130% 55% at 15% 0%, rgba(255,255,255,.14), rgba(255,255,255,0) 52%),
-    linear-gradient(180deg, rgba(40,40,52,.52), rgba(15,15,21,.44));
+    radial-gradient(130% 55% at 15% 0%, rgba(255,255,255,.09), rgba(255,255,255,0) 52%),
+    linear-gradient(180deg, rgba(36,38,50,.30), rgba(10,10,16,.24));
   /* 30px radius keeps the deep frost but costs far less GPU than 36px on a
      full-height fixed pane that re-samples on every scroll */
   -webkit-backdrop-filter: blur(30px) saturate(175%);
@@ -113,6 +115,23 @@ iframe, video { max-width: 100%; }
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(105deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 38%);
   opacity: .65;
+}
+/* parallax glow — drifts against the pane as the page scrolls (driven by the
+   --sby scroll-position custom property), giving the transparent glass depth */
+.sidebar::after {
+  content: ''; position: absolute; left: -12%; right: -12%; top: -8%; height: 46%;
+  pointer-events: none;
+  background: radial-gradient(70% 100% at 50% 100%, rgba(255,255,255,.14), rgba(255,255,255,0) 72%);
+  transform: translateY(calc(var(--sby, 0px) * -0.07));
+  will-change: transform;
+}
+@media (pointer: fine) {
+  /* the nav drifts at a fraction of the page scroll — a gentle parallax lag
+     behind the transparent pane (phones keep native feel, zero drift) */
+  .side-scroll {
+    transform: translateY(calc(var(--sby, 0px) * 0.028));
+    will-change: transform;
+  }
 }
 .sidebar.collapsed { transform: translateX(calc(-1 * var(--sbw, 264px))); }
 /* drag handle on the sidebar's right edge — 12px hit area (the sidebar's
@@ -210,7 +229,7 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
 }
 .plat-chip {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 10px 6px 8px; border-radius: 999px; text-align: center; min-width: 0;
+  padding: 10px 6px 8px; border-radius: 18px; text-align: center; min-width: 0;
   background: linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.05));
   border: 1px solid rgba(255,255,255,.13);
   -webkit-backdrop-filter: blur(10px) saturate(150%); backdrop-filter: blur(10px) saturate(150%);
@@ -224,19 +243,19 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
 /* the original logo sits in a curved white glass badge — like app icons,
    so the real brand colours pop cleanly against the frost */
 .plat-logo {
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 38px; height: 38px; border-radius: 30%;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(120% 120% at 30% 15%, #ffffff, #e8eaf0);
   border: 1px solid rgba(255,255,255,.85);
   /* a hairline dark ring under the white edge keeps even light-coloured
-     logos separated from the dark glass pill */
+     logos separated from the dark glass tile */
   box-shadow: 0 0 0 1px rgba(0,0,0,.08), inset 0 1px 1px rgba(255,255,255,.9), 0 3px 10px rgba(0,0,0,.35);
   padding: 6px;
 }
 .plat-logo img { width: 100%; height: 100%; object-fit: contain; filter: none; }
 .plat-ic {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; background: rgba(20,20,28,.85); color: #fff;
+  border-radius: 30%; background: rgba(20,20,28,.85); color: #fff;
   font-weight: 800; font-size: 13px;
 }
 .plat-name {
@@ -1953,9 +1972,11 @@ body.ep-open { overflow: hidden; }
   }
   /* compensation — the same ink the touch pass uses, so micro chips still
      read as glass with zero blur sampling */
-  .card .play-circle { background: rgba(8,8,12,.82); border-color: rgba(255,255,255,.26); }
+  /* play buttons stay white-minimal (they were reading as black solid discs
+     with the dark fill) — white frosted circle, dark icon from the base rule */
+  .card .play-circle { background: rgba(255,255,255,.94); border-color: rgba(255,255,255,.85); }
   .card .card-rating, .card .watch-flag, .ep-card .thumb .num, .ep-thumb .ep-num { background: rgba(8,8,12,.78); }
-  .ph-play { background: rgba(8,8,12,.62); }
+  .ph-play { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.45); color: rgba(255,255,255,.95); }
   .hero-dots { background: rgba(10,10,16,.62); }
   .hero-nav, .row-nav { background: rgba(18,18,24,.78); }
   .chip, .server-tab, .plat-chip { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07)); }
@@ -2154,9 +2175,11 @@ body.effects-lite .ticker-track { animation: none; }
   /* route enter: fade-only — the full-page scale+rise repaints the document */
   .main-scroll.view-enter { animation: fadeIn .32s var(--ease-smooth) both; }
   /* compensate — tiny chips need a touch more ink to still read as glass */
-  .card .play-circle { background: rgba(8,8,12,.82); border-color: rgba(255,255,255,.26); }
+  /* play buttons stay white-minimal (they were reading as black solid discs
+     with the dark fill) — white frosted circle, dark icon from the base rule */
+  .card .play-circle { background: rgba(255,255,255,.94); border-color: rgba(255,255,255,.85); }
   .card .card-rating, .card .watch-flag, .ep-card .thumb .num, .ep-thumb .ep-num { background: rgba(8,8,12,.78); }
-  .ph-play { background: rgba(8,8,12,.62); }
+  .ph-play { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.45); color: rgba(255,255,255,.95); }
   .hero-dots { background: rgba(10,10,16,.62); }
   .search-overlay, .keys-overlay, .more-sheet-overlay, .report-overlay { background: rgba(6,6,10,.72); }
   .ep-overlay { background: rgba(6,6,10,.55); }

@@ -120,7 +120,10 @@ const LOGO_WORD = (name) => {
    in localStorage for a week, and the sidebar shows the curated set first,
    then the next most popular providers. Clicking a chip filters the movie
    grid by that platform via with_watch_providers. */
-const PLATFORM_IDS = [8, 119, 2336, 350, 232, 237, 192, 283, 309, 315, 437, 515, 532, 502, 510, 476, 474, 614, 11, 100, 73, 538, 561, 546];
+/* curated famous platforms — ordered by priority; IDs missing from the IN
+   provider list simply don't render (filtered by byId below), so the extra
+   candidates are safe additions */
+const PLATFORM_IDS = [8, 119, 2336, 350, 232, 237, 192, 283, 384, 337, 386, 531, 519, 121, 128, 335, 10, 300, 486, 414, 334, 122, 156, 309, 315, 437, 515, 532, 502, 510, 476, 474, 614, 11, 100, 73, 538, 561, 546];
 const PLATFORM_CACHE_KEY = 'kxp:platforms:v1';
 /* if the provider list fetch ever fails, these keep the section clickable
    (letter-tile chips, no logos) instead of rendering empty */
@@ -164,7 +167,7 @@ function renderPlatforms(el) {
   const picked = PLATFORM_IDS.map(id => byId[id]).filter(Boolean)
     .concat(list.filter(p => p && p.provider_id && p.provider_name && !PLATFORM_IDS.includes(p.provider_id))
       .sort((a, b) => ((a.display_priorities || {}).IN || 999) - ((b.display_priorities || {}).IN || 999))
-      .slice(0, 4));
+      .slice(0, 6));
   el.innerHTML = picked.map(p => {
     const logo = p.logo_path ? 'https://image.tmdb.org/t/p/w92' + p.logo_path : '';
     return `<a class="plat-chip" href="#/browse/movie?provider=${p.provider_id}" title="${esc(p.provider_name)}">`
@@ -491,6 +494,28 @@ const updateFloatLogo = () => {
   });
 };
 window.addEventListener('scroll', updateFloatLogo, { passive: true });
+/* sidebar parallax — one diff-guarded custom property per frame (--sby) that
+   the transparent pane's glow + nav drift read. Fine pointers only; phones
+   get the transparent frost but native stillness, and reduced-motion users
+   stay fully static. */
+(function initSidebarParallax() {
+  if (!window.matchMedia) return;
+  const appEl = $('.app');
+  if (!appEl) return;
+  if (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const yPos = () => window.scrollY || document.documentElement.scrollTop;
+  let raf = 0, lastY = null;
+  const apply = () => {
+    raf = 0;
+    if (document.body.classList.contains('page-hidden')) return;
+    const y = Math.round(yPos());
+    if (y === lastY) return;
+    lastY = y;
+    appEl.style.setProperty('--sby', y + 'px');
+  };
+  window.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(apply); }, { passive: true });
+  apply();
+})();
 /* ---------------- Liquid scroll (Apple-smooth glide) ----------------
    Mouse wheels arrive in chunky ~100px steps — this eases the page toward the
    wheeled position at a ~1.2× reach with a decelerating glide, so scrolling
