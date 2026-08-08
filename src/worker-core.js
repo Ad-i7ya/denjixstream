@@ -406,20 +406,31 @@ function gateHTML(siteName, sk) {
 /* gate script — only injected for visitors without the pass cookie. It renders
    the Turnstile widget, posts the token to /api/gate/verify, then reloads so
    the app boots with the cookie in place (refresh = no gate ever again). */
-const GATE_JS = `\n<script>\n(function(){\n  var tries=0;
+const GATE_JS = `\n<script>\n(function(){\n  var scriptEl=null;
   function done(){ try{ setTimeout(function(){ location.reload(); }, 250); }catch(e){ location.reload(); } }\n  window.__kxGateDone=function(token){\n    fetch('/api/gate/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})})\n      .then(function(r){ if(r.ok){ done(); } else { fail(); } })\n      .catch(fail);\n  };
-  function fail(){ var e=document.getElementById('kxgErr'); if(e){ e.hidden=false; } var s=document.getElementById('kxgSpin'); if(s){ s.style.display='none'; } }
-  window.__kxGateRetry=fail;
-  function load(){\n    if(typeof window.turnstile!=='undefined' && document.querySelector('.cf-turnstile') && !document.querySelector('.cf-turnstile iframe')){
+  function fail(){ var e=document.getElementById('kxgErr'); if(e){ e.hidden=false; } var s=document.getElementById('kxgSpin'); if(s){ s.style.display='none'; }
+    if(typeof window.turnstile!=='undefined' && document.querySelector('.cf-turnstile')){ try{ window.turnstile.reset(document.querySelector('.cf-turnstile')); }catch(_){ } }
+  }
+  window.__kxGateRetry=function(){
+    if(typeof window.turnstile==='undefined'){ load(); return; }
+    var e=document.getElementById('kxgErr'); if(e){ e.hidden=true; }
+    var s=document.getElementById('kxgSpin'); if(s){ s.style.display=''; }
+    fail();
+  };
+  function load(){\n    if(typeof window.turnstile==='undefined' && !scriptEl){
+      scriptEl=document.createElement('script');
+      scriptEl.src='https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__kxGateLoad';
+      scriptEl.async=true; scriptEl.defer=true;
+      scriptEl.onerror=fail;
+      document.head.appendChild(scriptEl);
+      return;
+    }
+    if(typeof window.turnstile!=='undefined' && document.querySelector('.cf-turnstile') && !document.querySelector('.cf-turnstile iframe')){
       try{ window.turnstile.render('.cf-turnstile'); }catch(e){}
     }
   }
-  var s=document.createElement('script');
-  s.src='https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__kxGateLoad';
-  s.async=true; s.defer=true;
   window.__kxGateLoad=load;
-  s.onerror=fail;
-  document.head.appendChild(s);
+  load();
 })();\n</script>`;
 
 /* favicon mirrors the Aurora X mark, brightened for tiny sizes */

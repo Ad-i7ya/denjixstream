@@ -721,7 +721,7 @@ function openReportModal() {
     </div>
     <div class="report-field"><label>Details</label><textarea id="reportMsg" rows="4" maxlength="1000" placeholder="Describe the problem — what happened, what you were watching…"></textarea></div>
     <div class="report-field"><label>Your contact <em class="muted">(optional)</em></label><input id="reportContact" maxlength="120" placeholder="Email or Telegram @handle so we can reply"></div>
-    ${window.__GATE && window.__GATE.active ? '<div class="report-field" id="reportTurnstile"><div class="cf-turnstile" data-sitekey="' + esc(window.__GATE.sk) + '" data-theme="dark"></div></div>' : ''}
+    ${window.__GATE && window.__GATE.active && !/dx_pass=/.test(document.cookie) ? '<div class="report-field" id="reportTurnstile"><div class="cf-turnstile" data-sitekey="' + esc(window.__GATE.sk) + '" data-theme="dark"></div></div>' : ''}
     <button type="button" class="btn btn-primary" id="reportSend" style="width:100%;justify-content:center">${icon('check')} Send report</button>
   </div>`;
   document.body.appendChild(reportModal);

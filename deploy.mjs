@@ -88,7 +88,7 @@ async function deployCloudflare() {
        site behaves exactly as before. Get keys: dash.cloudflare.com →
        Turnstile → Add Site (hostname: your workers.dev domain). */
     ...(process.env.TURNSTILE_SITE_KEY ? [{ name: 'TURNSTILE_SITE_KEY', type: 'plain_text', text: process.env.TURNSTILE_SITE_KEY }] : []),
-    ...(process.env.TURNSTILE_SECRET_KEY ? [{ name: 'TURNSTILE_SECRET_KEY', type: 'plain_text', text: process.env.TURNSTILE_SECRET_KEY }] : []),
+    ...(process.env.TURNSTILE_SECRET_KEY ? [{ name: 'TURNSTILE_SECRET_KEY', type: 'secret_text', text: process.env.TURNSTILE_SECRET_KEY }] : []),
   ];
   /* shared analytics KV namespace (created by deploy-admin.mjs in
      knightxstream-admin) — without this the beacon /api/siteconfig
