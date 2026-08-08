@@ -2033,7 +2033,7 @@ function viewNotFound() {
     <div class="nf-scene" id="nfScene">
       <div class="nf-bob">
         <div class="nf-orb nf-orb-a"></div><div class="nf-orb nf-orb-b"></div>
-        <svg class="nf-tri" viewBox="0 0 120 112" aria-hidden="true">
+        <svg class="nf-tri" viewBox="0 0 120 112" role="img" aria-label="404">
           <defs>
             <linearGradient id="nfGrad" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0" stop-color="#7fc2ff"/><stop offset=".55" stop-color="#4db0ff"/><stop offset="1" stop-color="#a66aff"/>
@@ -2061,7 +2061,7 @@ function viewNotFound() {
   const wrap = $('#nfWrap'); if (!wrap || !window.matchMedia) return;
   if (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const scene = $('#nfScene'); if (!scene) return;
-  let raf = 0, tx = 0, ty = 0, cx = 0, cy = 0;
+  let raf = 0, tx = 0, ty = 0, cx = 0, cy = 0, rect = null;
   const step = () => {
     raf = 0;
     cx += (tx - cx) * 0.12; cy += (ty - cy) * 0.12;
@@ -2069,10 +2069,14 @@ function viewNotFound() {
     scene.style.transform = `perspective(900px) rotateX(${cy.toFixed(2)}deg) rotateY(${cx.toFixed(2)}deg)`;
     raf = requestAnimationFrame(step);
   };
+  /* cache the box once per enter (re-read on resize) — no layout read per move */
+  const setRect = () => { rect = wrap.getBoundingClientRect(); };
+  wrap.addEventListener('pointerenter', setRect);
+  window.addEventListener('resize', setRect);
   wrap.addEventListener('pointermove', (e) => {
-    const r = wrap.getBoundingClientRect();
-    tx = ((e.clientX - r.left) / r.width - 0.5) * 7;
-    ty = -((e.clientY - r.top) / r.height - 0.5) * 7;
+    if (!rect) setRect();
+    tx = ((e.clientX - rect.left) / rect.width - 0.5) * 7;
+    ty = -((e.clientY - rect.top) / rect.height - 0.5) * 7;
     if (!raf) raf = requestAnimationFrame(step);
   });
   wrap.addEventListener('pointerleave', () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(step); });

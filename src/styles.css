@@ -1908,6 +1908,10 @@ body.ep-open { overflow: hidden; }
   .detail-hero { min-height: 200px; }
   .detail-info .overview { -webkit-line-clamp: 1; }
   .search-bar { margin-bottom: 18px; }
+  /* short landscape: 404 stays fully visible without page scroll */
+  .nf-wrap { min-height: 58vh; padding: 18px 16px 14px; }
+  .nf-scene { width: 120px; height: 120px; margin-bottom: 12px; }
+  .nf-404 { font-size: 44px; }
 }
 @media (min-width: 1025px) and (max-height: 560px) {
   .hero { aspect-ratio: 16/6; }
