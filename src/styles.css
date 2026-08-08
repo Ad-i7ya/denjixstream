@@ -1826,3 +1826,84 @@ body.ep-open { overflow: hidden; }
   content-visibility: auto;
   contain-intrinsic-size: auto 180px;
 }
+
+/* ---------- Touch / phone: liquid-glass lite ----------
+   backdrop-filter re-samples the pixels behind an element on every repaint.
+   The card chips (play button, rating, watch flag, episode number) exist by
+   the HUNDREDS per page — each forcing a blur sample on every scroll frame is
+   the #1 phone jank source the 1024px block above cannot reach. Fullscreen
+   overlays (search, keys, episodes, report) and player chrome blurred over a
+   live video are the other two. On touch we drop the blur and keep richer
+   translucent backgrounds — visually identical over dark content, zero
+   per-frame cost. Desktop keeps the full liquid glass. */
+@media (hover: none), (pointer: coarse) {
+  /* the hundreds: card chips, episode numbers, placeholder play buttons */
+  .card .play-circle, .card .card-rating, .card .watch-flag,
+  .ep-card .thumb .num, .ep-thumb .ep-num, .ph-play {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  /* chips, tabs, small buttons, player chrome, footer chips */
+  .chip, .server-tab, .btn-glass, .search-bar, .cat-tile.cat-decade,
+  .hero-nav, .hero-dots, .contact-btn, .collapse-btn,
+  .pc-btn, .pl-badge, .pl-fs, .pl-shield-chip, .pl-err, .pl-err-ico,
+  .toast, .dev-chip, .ep-close, .sr-kbd {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  /* always-on fixed bars — the 820px block re-adds blur(12-14px) to these
+     after the 1024px kill; they re-sample the page behind them on EVERY
+     scroll frame, so they must be zeroed here (backgrounds are compensated
+     below and carry the glass look on their own) */
+  .mobile-nav, .float-logo, .menu-btn {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  /* no permanent hero-sized GPU layers on phones — the max-1024 block stops
+     the heroZoom animation but leaves these will-change hints promoted */
+  .hero-slide.active, .hero-slide.active .backdrop { will-change: auto; }
+  /* fullscreen/sheet overlays: blur(14-40px) over the whole screen re-samples
+     everything on open AND on every underlying scroll — solid tint instead */
+  .search-overlay, .keys-overlay, .more-sheet-overlay, .report-overlay,
+  .maint-overlay, .ep-overlay, .player-error, #routeVeil {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  /* glass cards keep their own gradient fills — the blur was decorative */
+  .keys-card, .ep-panel, .more-sheet, .report-sheet, .search-pop,
+  .detail-panel, .announce-banner, .site-footer {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  /* aurora stays visible but frozen — the 64-96s drift of 62-70vmax layers is
+     continuous GPU compositing on phones; a still keeps all the depth */
+  #aurora .au { animation: none; }
+  /* route enter: fade-only — the full-page scale+rise repaints the document */
+  .main-scroll.view-enter { animation: fadeIn .32s var(--ease-smooth) both; }
+  /* compensate — tiny chips need a touch more ink to still read as glass */
+  .card .play-circle { background: rgba(8,8,12,.82); border-color: rgba(255,255,255,.26); }
+  .card .card-rating, .card .watch-flag, .ep-card .thumb .num, .ep-thumb .ep-num { background: rgba(8,8,12,.78); }
+  .ph-play { background: rgba(8,8,12,.62); }
+  .hero-dots { background: rgba(10,10,16,.62); }
+  .search-overlay, .keys-overlay, .more-sheet-overlay, .report-overlay { background: rgba(6,6,10,.72); }
+  .ep-overlay { background: rgba(6,6,10,.55); }
+  .player-error { background: rgba(0,0,0,.9); }
+  .maint-overlay { background: rgba(6,6,10,.8); }
+  .search-pop { background: linear-gradient(180deg, rgba(30,30,40,.94), rgba(16,16,22,.97)); }
+  .more-sheet, .ep-panel { background: linear-gradient(180deg, rgba(30,30,40,.96), rgba(14,14,20,.98)); }
+  .report-sheet { background: linear-gradient(180deg, rgba(30,30,40,.94), rgba(16,16,22,.97)); }
+  .keys-card { background: linear-gradient(160deg, rgba(255,255,255,.22), rgba(255,255,255,.09)); }
+  .detail-panel { background: rgba(18,18,26,.68); }
+  .announce-banner { background: rgba(24,26,34,.92); }
+  .site-footer { background: rgba(16,16,22,.94); }
+  .mobile-nav { background: rgba(20,20,27,.94); }
+  .float-logo, .menu-btn, .collapse-btn { background: rgba(20,20,28,.9); }
+  .contact-btn { background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.06)); }
+  .cat-tile.cat-decade { background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.07)); }
+  .chip, .server-tab { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07)); }
+  .btn-glass { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.06)); }
+  .search-bar { background: rgba(28,28,38,.85); }
+  .pc-btn { background: rgba(10,10,14,.72); }
+  .pl-badge, .pl-fs { background: rgba(255,255,255,.92); }
+  .pl-shield-chip { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.09)); }
+  .pl-err, .pl-err-ico { background: rgba(18,18,26,.85); }
+  .toast { background: rgba(24,24,32,.92); }
+  .dev-chip { background: linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.06)); }
+  .ep-close { background: rgba(20,20,28,.9); }
+  .hero-nav { background: rgba(12,12,18,.55); }
+}

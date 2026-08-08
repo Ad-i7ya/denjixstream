@@ -1986,20 +1986,29 @@ function applySiteConfig() {
     banner.classList.add('dismissing');
     setTimeout(() => banner.remove(), 340);
   }
-  /* site name override — title bar, sidebar logo, footer brand */
+  /* site name override — title bar, sidebar logo, footer brand (diff-guarded:
+     the 15s heartbeat must never rewrite identical DOM on phones) */
   const nm = (cfg.siteName || '').trim();
   if (nm) {
-    document.title = nm;
-    $$('.logo a, .foot-brand').forEach(el => { el.innerHTML = LOGO_MARK + LOGO_WORD(nm); });
+    if (document.title !== nm) document.title = nm;
+    $$('.logo a, .foot-brand').forEach(el => {
+      if (el.dataset.nm !== nm) { el.dataset.nm = nm; el.innerHTML = LOGO_MARK + LOGO_WORD(nm); }
+    });
   }
   /* tagline under the sidebar logo (admin-driven) */
   const tg = $('#logoTag');
   if (tg) { const v = (cfg.tagline || '').trim(); tg.textContent = v; tg.style.display = v ? '' : 'none'; }
   /* footer developer chips from the admin panel — ALL devs (up to 6), applied
-     after config loads and on every 15s heartbeat so new devs appear live */
+     after config loads and on every 15s heartbeat so new devs appear live.
+     Diff-guarded so an unchanged devs list never re-decodes the avatar images
+     or rewrites the footer (a real phone jank source on the heartbeat). */
   if (cfg.devs && cfg.devs.length) {
+    const key = JSON.stringify(cfg.devs);
     $$('.foot-devs').forEach(box => {
-      box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${cfg.devs.map(devChip).join('')}`;
+      if (box.dataset.devs !== key) {
+        box.dataset.devs = key;
+        box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${cfg.devs.map(devChip).join('')}`;
+      }
     });
   }
   /* section toggles from the panel: anime / watchlist / history / hero / contact */
@@ -2107,7 +2116,7 @@ function boot() {
   loadSiteConfig();
   /* keep admin-driven site controls live: refresh on navigation, on tab focus,
      and on a 15s heartbeat (the explicit /api/siteconfig GET is cache-bypassed) */
-  setInterval(loadSiteConfig, 15000);
+  setInterval(() => { if (!document.hidden) loadSiteConfig(); }, 15000);
   window.addEventListener('hashchange', loadSiteConfig);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadSiteConfig(); });
   try { if (!sessionStorage.getItem('dx_visited')) { sessionStorage.setItem('dx_visited', '1'); beacon('visit'); } } catch (_) {}
