@@ -385,17 +385,21 @@ document.body.appendChild(aurora);
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const fine = window.matchMedia('(pointer: fine)').matches;
   const yPos = () => window.scrollY || document.documentElement.scrollTop;
-  let pRaf = 0;
+  let pRaf = 0, lastY = null;
   const apply = () => {
     pRaf = 0;
-    /* ~5% of scroll on desktop, ~3% on phones — same quarter-viewport clamp,
-       and the container keeps its 30vh slack so the field never uncovers an
-       edge at either speed */
+    /* a hidden tab drifts on nothing, and a diff-guard skips the style write
+       once the shift clamps (past the range every frame wrote the same
+       transform — a wasted style recalc) */
+    if (document.body.classList.contains('page-hidden')) return;
     const maxShift = Math.round(window.innerHeight * 0.25);
     const y = clamp(-yPos() * (fine ? 0.05 : 0.03), -maxShift, maxShift);
+    if (y === lastY) return;
+    lastY = y;
     aurora.style.transform = `translate3d(0, ${y}px, 0)`;
   };
   window.addEventListener('scroll', () => { if (!pRaf) pRaf = requestAnimationFrame(apply); }, { passive: true });
+  window.addEventListener('resize', () => { lastY = null; apply(); });
   apply();
 })();
 /* hero scroll effects — two compositor-only layers of depth that respond to
@@ -419,30 +423,49 @@ document.body.appendChild(aurora);
   const K_SC = fine ? 0.07 : 0.04;  /* collapse scale factor */
   const yPos = () => window.scrollY || document.documentElement.scrollTop;
   let hRaf = 0;
-  let heroEl = null, heroH = 0;
+  let heroEl = null, heroBg = null, heroH = 0, heroOn = true, io = null;
+  let lastHp = null, lastHs = null, lastHo = null;
   /* hero height is cached so the rAF loop never forces layout per frame (the
      main phone perf win) — re-measured on resize and when a route swap
-     replaces the hero (isConnected check) */
-  const measure = () => { heroEl = document.querySelector('.hero'); heroH = heroEl ? (heroEl.offsetHeight || 0) : 0; };
+     replaces the hero (isConnected check). The offscreen observer stops ALL
+     per-frame style writes once the hero scrolls out of view — the home
+     page's biggest idle cost on any device. */
+  const measure = () => {
+    heroEl = document.querySelector('.hero');
+    heroBg = heroEl ? heroEl.querySelector('.hero-bg') : null;
+    heroH = heroEl ? (heroEl.offsetHeight || 0) : 0;
+    lastHp = lastHs = lastHo = null;
+    if (io) { io.disconnect(); io = null; }
+    if (heroEl && 'IntersectionObserver' in window) {
+      io = new IntersectionObserver((ents) => { heroOn = ents[0].isIntersecting; }, { rootMargin: '260px' });
+      io.observe(heroEl);
+    }
+  };
   const apply = () => {
     hRaf = 0;
-    if (!heroEl || !heroEl.isConnected) measure();
-    const hero = heroEl; if (!hero) return;
+    if (!heroEl || !heroEl.isConnected) { measure(); }
+    const hero = heroEl; if (!hero || !heroOn) return;
     /* freeze while a trailer is playing — per-frame transform+opacity under a
        YouTube iframe is the heaviest phone cost, and the trailer already
        covers the artwork */
     if (hero.querySelector('.hero-slide.playing')) return;
     const y = yPos();
     const t = clamp(y * K_BG, 0, Math.max(0, heroH * (fine ? 0.15 : 0.1)));
-    hero.style.setProperty('--hp', Math.round(t) + 'px');
+    const hp = Math.round(t) + 'px';
+    /* write --hp on the artwork layer itself — a custom-property change on
+       .hero would invalidate the whole hero subtree every frame */
+    const art = heroBg || hero;
+    if (hp !== lastHp) { lastHp = hp; art.style.setProperty('--hp', hp); }
     if (heroH > 0) {
       const p = clamp(y / heroH, 0, 1); /* 0 at top → 1 once the hero has scrolled out */
-      hero.style.setProperty('--hs', (1 - K_SC * p).toFixed(3));
-      hero.style.setProperty('--ho', (1 - p).toFixed(3));
+      const hs = (1 - K_SC * p).toFixed(3);
+      const ho = (1 - p).toFixed(3);
+      if (hs !== lastHs) { lastHs = hs; hero.style.setProperty('--hs', hs); }
+      if (ho !== lastHo) { lastHo = ho; hero.style.setProperty('--ho', ho); }
     }
   };
   window.addEventListener('scroll', () => { if (!hRaf) hRaf = requestAnimationFrame(apply); }, { passive: true });
-  window.addEventListener('resize', debounce(measure, 150));
+  window.addEventListener('resize', debounce(() => { lastHp = lastHs = lastHo = null; measure(); }, 150));
   measure();
   apply();
 })();

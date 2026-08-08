@@ -751,11 +751,14 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 }
 .card-ph.shimmer::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(100deg, transparent 32%, rgba(255,255,255,.08) 50%, transparent 68%);
-  background-size: 220% 100%;
+  /* compositor-only sweep — the highlight band TRANSLATES across the tile
+     (transform = GPU layer move) instead of re-rasterising a background-position
+     gradient every frame on every visible skeleton */
+  transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 32%, rgba(255,255,255,.09) 50%, transparent 68%);
   animation: phSweep 1.9s ease-in-out infinite;
 }
-@keyframes phSweep { from { background-position: 180% 0; } to { background-position: -80% 0; } }
+@keyframes phSweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .card-ph .ph-play { opacity: 0; transition: opacity .4s var(--ease-smooth); }
 .card-ph:not(.shimmer) .ph-play { opacity: 1; }
 .ph-play {
@@ -974,8 +977,8 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .pop-item .thumb img.img-err { display: none; }
 .shimmer-thumb::after {
   content: ''; position: absolute; inset: 0;
+  transform: translateX(-100%);
   background: linear-gradient(100deg, transparent 32%, rgba(255,255,255,.09) 50%, transparent 68%);
-  background-size: 220% 100%;
   animation: phSweep 1.9s ease-in-out infinite;
 }
 .pop-item .info { flex: 1; min-width: 0; }
@@ -1867,13 +1870,38 @@ body.ep-open { overflow: hidden; }
    tight title tracking, springy focus rings, quiet hover lifts. Applied
    without adding visual noise. */
 @media (pointer: fine) {
+  /* desktop mirrors the phone glass-lite pass: the hundred-per-page micro
+     elements keep their translucent fills (which already carry the glass
+     look on dark content) but drop the blur sample. Every blurred chip
+     re-samples the page behind it on each scroll frame, and with hundreds
+     of them on a page that IS the desktop lag. The big surfaces — sidebar,
+     float-logo, modals/drawers, detail panels, player chrome — keep their
+     real liquid glass, so the aesthetic reads identically for a fraction
+     of the GPU cost. */
   .chip, .server-tab, .btn-glass, .search-bar, .cat-tile.cat-decade,
   .card .play-circle, .card .card-rating, .card .watch-flag,
   .ep-card .thumb .num, .ep-thumb .ep-num, .row-nav, .pc-btn, .dev-chip,
-  .toast, .hero-dots, .ep-close, .contact-btn {
-    -webkit-backdrop-filter: blur(6px) saturate(135%);
-    backdrop-filter: blur(6px) saturate(135%);
+  .toast, .hero-dots, .ep-close, .contact-btn, .hero-nav,
+  .plat-chip, .sr-kbd, .pl-badge, .pl-fs, .pl-shield-chip, .pl-err, .pl-err-ico,
+  .ph-play, .pop-item {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
   }
+  /* compensation — the same ink the touch pass uses, so micro chips still
+     read as glass with zero blur sampling */
+  .card .play-circle { background: rgba(8,8,12,.82); border-color: rgba(255,255,255,.26); }
+  .card .card-rating, .card .watch-flag, .ep-card .thumb .num, .ep-thumb .ep-num { background: rgba(8,8,12,.78); }
+  .ph-play { background: rgba(8,8,12,.62); }
+  .hero-dots { background: rgba(10,10,16,.62); }
+  .hero-nav, .row-nav { background: rgba(18,18,24,.78); }
+  .chip, .server-tab, .plat-chip { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07)); }
+  .btn-glass { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.06)); }
+  .search-bar { background: rgba(28,28,38,.85); }
+  .pc-btn { background: rgba(10,10,14,.72); }
+  .contact-btn { background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.06)); }
+  .cat-tile.cat-decade { background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.07)); }
+  .pl-badge, .pl-fs { background: rgba(255,255,255,.92); }
+  .pl-shield-chip { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.09)); }
+  .pl-err, .pl-err-ico { background: rgba(18,18,26,.85); }
   /* thin, quiet scrollbars — visible only while scrolling */
   * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
