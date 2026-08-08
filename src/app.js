@@ -168,7 +168,7 @@ function renderPlatforms(el) {
   el.innerHTML = picked.map(p => {
     const logo = p.logo_path ? 'https://image.tmdb.org/t/p/w92' + p.logo_path : '';
     return `<a class="plat-chip" href="#/browse/movie?provider=${p.provider_id}" title="${esc(p.provider_name)}">`
-      + (logo ? `<img src="${logo}" alt="" loading="lazy" decoding="async">` : `<i class="plat-ic">${esc(String(p.provider_name)[0] || '?')}</i>`)
+      + `<span class="plat-logo">${logo ? `<img src="${logo}" alt="" loading="lazy" decoding="async">` : `<i class="plat-ic">${esc(String(p.provider_name)[0] || '?')}</i>`}</span>`
       + `<span class="plat-name">${esc(p.provider_name)}</span></a>`;
   }).join('');
 }
@@ -558,8 +558,12 @@ const devChip = (d) => {
   const av = DEV_AVATARS[String(d.handle || '').toLowerCase()];
   return `<a class="dev-chip" href="https://t.me/${esc(d.handle)}" target="_blank" rel="noopener" title="${esc(d.name)} on Telegram"><span class="dev-ava">${av ? `<img src="/avatars/${av}.jpg?v=3" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}${esc((d.name || '?')[0].toUpperCase())}</span><span>${esc(d.name)}</span>${icon('telegram')}</a>`;
 };
-const footerNote = () => {
+/* shared developer chips — admin-defined list, falling back to the founding duo */
+const devChips = () => {
   const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
+  return devs ? devs.map(devChip).join('') : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' });
+};
+const footerNote = () => {
   return `<footer class="site-footer">
   <a class="foot-brand" href="#/">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>
   <nav class="foot-links" aria-label="Footer">
@@ -569,7 +573,7 @@ const footerNote = () => {
   </nav>
   <div class="foot-devs" aria-label="Developers">
     <span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>
-    ${devs ? devs.map(devChip).join('') : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' })}
+    ${devChips()}
   </div>
   <p class="foot-legal">This site does not store any files on the server. We only link to media hosted on third-party services. All trademarks and copyrights belong to their respective owners.</p>
   <p class="foot-copy">© ${new Date().getFullYear()} ${esc(SITE_NAME)} · Crafted with <span class="heart">♥</span> for movie lovers</p>
@@ -2000,7 +2004,6 @@ function viewHistory() {
 
 function viewInfo() {
   setTitle(['About']);
-  const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
   main.innerHTML = `<div class="detail-panel info-page" style="max-width:820px;margin:0 auto">
     <div class="info-hero">
       <span class="info-mark">${LOGO_MARK}</span>
@@ -2024,7 +2027,7 @@ function viewInfo() {
     </div>
     <div class="info-section">
       <h3 class="info-label">${icon('sparkles', 'inline')} Developers</h3>
-      <div class="info-devs">${devs ? devs.map(devChip).join('') : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' })}</div>
+      <div class="info-devs">${devChips()}</div>
       <p class="info-body muted" style="font-size:12.5px;margin-top:10px">Found a bug or want something new? Tap a developer to reach them on Telegram — reports also land straight in our dashboard.</p>
     </div>
     <div class="info-foot">
@@ -2248,10 +2251,13 @@ function applySiteConfig() {
      or rewrites the footer (a real phone jank source on the heartbeat). */
   if (cfg.devs && cfg.devs.length) {
     const key = JSON.stringify(cfg.devs);
-    $$('.foot-devs').forEach(box => {
+    $$('.foot-devs, .info-devs').forEach(box => {
       if (box.dataset.devs !== key) {
         box.dataset.devs = key;
-        box.innerHTML = `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>${cfg.devs.map(devChip).join('')}`;
+        /* the About page already renders its own 'Developers' heading above
+           .info-devs — only the footer gets the label baked in */
+        const label = box.classList.contains('info-devs') ? '' : `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>`;
+        box.innerHTML = label + cfg.devs.map(devChip).join('');
       }
     });
   }
