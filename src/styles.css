@@ -195,7 +195,7 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
 .side-link:hover svg { opacity: 1; }
 .side-link.active {
   background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07));
-  color: #fff;
+  color: #fff; font-weight: 600;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.2), 0 4px 16px rgba(0,0,0,.3);
 }
 .side-link.active svg { color: var(--accent); opacity: 1; }
@@ -228,7 +228,9 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(120% 120% at 30% 15%, #ffffff, #e8eaf0);
   border: 1px solid rgba(255,255,255,.85);
-  box-shadow: inset 0 1px 1px rgba(255,255,255,.9), 0 3px 10px rgba(0,0,0,.35);
+  /* a hairline dark ring under the white edge keeps even light-coloured
+     logos separated from the dark glass pill */
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08), inset 0 1px 1px rgba(255,255,255,.9), 0 3px 10px rgba(0,0,0,.35);
   padding: 6px;
 }
 .plat-logo img { width: 100%; height: 100%; object-fit: contain; filter: none; }

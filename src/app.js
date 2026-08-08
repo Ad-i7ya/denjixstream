@@ -2260,6 +2260,15 @@ function applySiteConfig() {
         box.innerHTML = label + cfg.devs.map(devChip).join('');
       }
     });
+  } else {
+    /* devs removed in the panel — fall back to the founding duo (diff-guarded) */
+    $$('.foot-devs, .info-devs').forEach(box => {
+      if (box.dataset.devs !== 'fb') {
+        box.dataset.devs = 'fb';
+        const label = box.classList.contains('info-devs') ? '' : `<span class="foot-devs-label">${icon('sparkles', 'inline')} Developers</span>`;
+        box.innerHTML = label + devChips();
+      }
+    });
   }
   /* section toggles from the panel: anime / watchlist / history / hero / contact */
   $$('[data-nav="anime"]').forEach(a => a.classList.toggle('hidden', cfg.anime === false));
