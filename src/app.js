@@ -1447,11 +1447,13 @@ async function viewDetail(params) {
   const type = params.id ? (location.hash.includes('/tv/') ? 'tv' : 'movie') : 'movie';
   const id = params.id;
   main.innerHTML = `<div class="skeleton" style="height:340px;border-radius:20px"></div>${SKELETON_ROW}`;
+  const myTok = routeTok; /* drop stale fetches — a slow detail load must not overwrite the page the user navigated to */
   const [d, credits, similar] = await Promise.all([
     api(`/${type}/${id}?language=en-US&append_to_response=external_ids,videos`).catch(() => null),
     api(`/${type}/${id}/credits?language=en-US`).catch(() => ({ cast: [] })),
     api(`/${type}/${id}/similar?language=en-US`).then(r => r.results).catch(() => []),
   ]);
+  if (myTok !== routeTok) return;
   if (!d) { main.innerHTML = `<div class="empty-state"><h3>Title not found</h3></div>`; return; }
   const title = d.title || d.name;
   const y = d.release_date ? year(d.release_date) : d.first_air_date ? year(d.first_air_date) : '';
@@ -1568,10 +1570,12 @@ async function viewWatch(params) {
     pShell.addEventListener('pointerdown', () => topOf()?.classList.add('show'));
     pShell.addEventListener('pointerleave', () => topOf()?.classList.remove('show'));
   }
+  const myTok = routeTok; /* drop stale fetches — a slow watch load must not overwrite the page the user navigated to */
   const [d, servers] = await Promise.all([
     api(`/${type}/${id}?language=en-US`).catch(() => null),
     fetch(`/api/stream?type=${type}&id=${id}${isTv ? `&season=${season}&episode=${episode}` : ''}`).then(r => r.json()).catch(() => ({ servers: [] })),
   ]);
+  if (myTok !== routeTok) return;
   const title = d ? (d.title || d.name) : (type === 'tv' ? 'TV Show' : 'Movie');
   const epName = isTv ? (season + '×' + episode) : '';
   const epLabel = isTv ? `S${season}E${episode}` : '';
