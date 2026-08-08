@@ -27,6 +27,7 @@ function routeTitleFor(path) {
   if (path.startsWith('/watch')) return ['Watch'];
   if (path.startsWith('/watchlist')) return ['Watchlist'];
   if (path.startsWith('/history')) return ['History'];
+  if (path.startsWith('/info')) return ['About'];
   if (path.startsWith('/legal')) return ['Legal'];
   if (path.startsWith('/movie/') || path.startsWith('/tv/')) return ['Details'];
   return [];
@@ -200,6 +201,7 @@ const routes = {
   '/watch/tv/:id/:season/:episode': viewWatch,
   '/watchlist': viewWatchlist,
   '/history': viewHistory,
+  '/info': viewInfo,
   '/legal': viewLegal,
 };
 function matchRoute(hash) {
@@ -278,7 +280,7 @@ async function router(restoreY) {
   /* pages that open with a title / search bar / player get top clearance so
      the always-visible floating logo never overlaps their header */
   const rp = (location.hash.replace(/^#/, '') || '/').split('?')[0];
-  main.classList.toggle('logo-gap', /^\/(search|browse|categories|anime|watchlist|history|legal|watch)\b/.test(rp));
+  main.classList.toggle('logo-gap', /^\/(search|browse|categories|anime|watchlist|history|info|legal|watch)\b/.test(rp));
   /* …then dissolve the veil so the new page sharpens into focus. The blur
      drops in 180ms while the tint lingers — smooth on low-end phone GPUs */
   routeVeil.style.transition = 'opacity .5s cubic-bezier(.32,.72,.32,1), -webkit-backdrop-filter .18s ease, backdrop-filter .18s ease';
@@ -334,6 +336,7 @@ const sidebarHTML = `
     </div>
     <div class="side-section">
       <span class="side-label">MORE</span>
+      <a class="side-link" data-nav="info" href="#/info">${icon('sparkles')}<span>About</span></a>
       <a class="side-link" data-nav="legal" href="#/legal">${icon('info')}<span>Legal / DMCA</span></a>
       <button type="button" class="side-link" id="reportBtn">${icon('flag')}<span>Report a problem</span></button>
     </div>
@@ -561,7 +564,7 @@ const footerNote = () => {
   <a class="foot-brand" href="#/">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>
   <nav class="foot-links" aria-label="Footer">
     <a href="#/">Home</a><a href="#/browse/movie">Movies</a><a href="#/browse/tv">TV Shows</a>
-    <a href="#/anime">Anime</a><a href="#/categories">Categories</a><a href="#/legal">Legal / DMCA</a>
+    <a href="#/anime">Anime</a><a href="#/categories">Categories</a><a href="#/info">About</a><a href="#/legal">Legal / DMCA</a>
     <button type="button" class="foot-btn" id="footReport">${icon('flag', 'inline')} Report a problem</button>
   </nav>
   <div class="foot-devs" aria-label="Developers">
@@ -726,9 +729,9 @@ document.addEventListener('click', (e) => {
   }
   if (reportModal && reportModal.isConnected) {
     const inRp = e.target.closest('.report-sheet');
-    if (!inRp && !e.target.closest('#reportBtn') && !e.target.closest('#footReport')) closeReportModal();
+    if (!inRp && !e.target.closest('#reportBtn') && !e.target.closest('#footReport') && !e.target.closest('#infoReport')) closeReportModal();
   }
-  if (e.target.closest('#reportBtn') || e.target.closest('#footReport')) { e.preventDefault(); openReportModal(); return; }
+  if (e.target.closest('#reportBtn') || e.target.closest('#footReport') || e.target.closest('#infoReport')) { e.preventDefault(); openReportModal(); return; }
   const sb = $('#sidebar');
   if (sb.classList.contains('open')) {
     const inSb = e.target.closest('.sidebar');
@@ -741,7 +744,7 @@ document.addEventListener('click', (e) => {
 function setActiveNav() {
   const path = (location.hash || '#/').replace(/^#/, '') || '/';
   const key = path.split('/')[1] || 'home';
-  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'categories', 'anime', 'legal', 'home'].includes(key) ? key : '');
+  const navKey = ['movie', 'tv'].includes(key) ? key : (['watchlist', 'history', 'search', 'browse', 'categories', 'anime', 'info', 'legal', 'home'].includes(key) ? key : '');
   $$('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === navKey));
 }
 
@@ -1995,6 +1998,43 @@ function viewHistory() {
   $('#clearHist')?.addEventListener('click', () => { Store.history.clear(); viewHistory(); toast('History cleared', 'success'); });
 }
 
+function viewInfo() {
+  setTitle(['About']);
+  const devs = (siteCfg && siteCfg.devs && siteCfg.devs.length) ? siteCfg.devs : null;
+  main.innerHTML = `<div class="detail-panel info-page" style="max-width:820px;margin:0 auto">
+    <div class="info-hero">
+      <span class="info-mark">${LOGO_MARK}</span>
+      ${LOGO_WORD(SITE_NAME)}
+      <p class="info-tag">Movies · TV · Anime — one beautifully organized universe.</p>
+    </div>
+    <div class="info-section">
+      <h3 class="info-label">What is ${esc(SITE_NAME)}?</h3>
+      <p class="info-body">${esc(SITE_NAME)} is a free streaming hub that brings movies, TV shows and anime together in one liquid-glass experience. It works as a search &amp; discovery layer — every title is aggregated from public streaming sources, and ${esc(SITE_NAME)} itself stores or hosts nothing, so it stays fast, light and completely free.</p>
+    </div>
+    <div class="info-section">
+      <h3 class="info-label">How to use</h3>
+      <ul class="info-list">
+        <li>${icon('browse', 'inline')}<div><b>Browse</b> — Movies, TV Shows, Anime and 25+ curated categories, or filter by the platform you already subscribe to (Netflix, Prime Video, JioHotstar, Apple TV+ and more).</div></li>
+        <li>${icon('search', 'inline')}<div><b>Quick search</b> — press <kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">K</kbd> anywhere on the site for instant results.</div></li>
+        <li>${icon('bookmark', 'inline')}<div><b>Watchlist</b> — bookmark any title to keep it one tap away.</div></li>
+        <li>${icon('clock', 'inline')}<div><b>History</b> — pick up exactly where you left off, on any device.</div></li>
+        <li>${icon('play', 'inline')}<div><b>Player</b> — if a server misbehaves, switch to another from the list. <kbd class="kbd">F</kbd> fullscreen, <kbd class="kbd">Space</kbd> play/pause, <kbd class="kbd">?</kbd> for every shortcut.</div></li>
+        <li>${icon('film', 'inline')}<div><b>Trailers</b> — hover a hero or open any title and the trailer plays right inside the frame.</div></li>
+      </ul>
+    </div>
+    <div class="info-section">
+      <h3 class="info-label">${icon('sparkles', 'inline')} Developers</h3>
+      <div class="info-devs">${devs ? devs.map(devChip).join('') : devChip({ name: 'Kyren', handle: 'kzr0x' }) + devChip({ name: 'Denji', handle: 'te4m1ord' })}</div>
+      <p class="info-body muted" style="font-size:12.5px;margin-top:10px">Found a bug or want something new? Tap a developer to reach them on Telegram — reports also land straight in our dashboard.</p>
+    </div>
+    <div class="info-foot">
+      <a class="btn btn-ghost" href="#/legal">${icon('info', 'inline')} Legal / DMCA</a>
+      <button class="btn btn-glass" id="infoReport">${icon('flag', 'inline')} Report a problem</button>
+    </div>
+  </div>`;
+  /* the report button rides the app-wide delegated handler like #reportBtn */
+}
+
 function viewLegal() {
   setTitle(['Legal']);
   main.innerHTML = `<div class="detail-panel" style="max-width:760px;margin:0 auto">
@@ -2234,7 +2274,7 @@ function applySiteConfig() {
   $$('.foot-links a[href="#/categories"]').forEach(a => a.classList.toggle('hidden', cfg.categories === false));
   $$('.foot-links a[href="#/browse/movie"]').forEach(a => a.classList.toggle('hidden', cfg.movies === false));
   $$('.foot-links a[href="#/browse/tv"]').forEach(a => a.classList.toggle('hidden', cfg.tv === false));
-  $$('#reportBtn, #footReport').forEach(a => a.classList.toggle('hidden', cfg.report === false));
+  $$('#reportBtn, #footReport, #infoReport').forEach(a => a.classList.toggle('hidden', cfg.report === false));
   /* appearance: accent color, glass intensity, compact mode, effects level */
   if (cfg.accent) document.documentElement.style.setProperty('--accent', cfg.accent);
   document.body.classList.toggle('glass-lite', cfg.glass === 'lite');
