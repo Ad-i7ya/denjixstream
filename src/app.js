@@ -498,6 +498,20 @@ const updateFloatLogo = () => {
   });
 };
 window.addEventListener('scroll', updateFloatLogo, { passive: true });
+/* motion-aware perf — while the page is scrolling (or the liquid glide is
+   running) add body.scrolling so the CSS can pause the expensive full-screen
+   animation layers (aurora drift, hero blobs, hero zoom) and drop the
+   sidebar's full-height blur sample; the frost pops back ~350ms after motion
+   stops. One passive listener + one debounced removal, zero per-frame work. */
+(function initScrollMotion() {
+  let t = 0;
+  const on = () => {
+    document.body.classList.add('scrolling');
+    clearTimeout(t);
+    t = setTimeout(() => document.body.classList.remove('scrolling'), 350);
+  };
+  window.addEventListener('scroll', on, { passive: true });
+})();
 /* sidebar parallax — one diff-guarded custom property per frame (--sby) that
    the transparent pane's glow + nav drift read. Fine pointers only; phones
    get the transparent frost but native stillness, and reduced-motion users
@@ -548,6 +562,9 @@ function initSmoothScroll() {
   const step = () => {
     raf = 0;
     if (!gliding) return;
+    /* a backgrounded tab glides on nothing — drop the glide so the stale
+       target can't cause a jump when the user returns and wheels again */
+    if (document.hidden) { gliding = false; return; }
     const real = yPos();
     if (Math.abs(target - real) < 0.6) { gliding = false; return; }
     const cur = real + (target - real) * 0.12; /* 12%/frame → ~350ms weighted glide */

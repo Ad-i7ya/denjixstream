@@ -561,7 +561,6 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   transition: opacity .7s cubic-bezier(.22, 1, .36, 1), transform .7s cubic-bezier(.22, 1, .36, 1);
 }
 .reveal-ready.in-view { opacity: 1; transform: none; }
-@media (pointer: fine) { .reveal-ready { will-change: opacity, transform; } }
 /* the title lands a beat before its row/grid (subtle stagger) */
 .section-head.reveal-ready { transition-delay: .02s; }
 .row-wrap.reveal-ready, .grid.reveal-ready, .cat-grid.reveal-ready { transition-delay: .09s; }
@@ -657,7 +656,7 @@ h2.section-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 }
 .hero-slide .blob {
   position: absolute; width: 420px; height: 420px; border-radius: 50%;
-  filter: blur(100px); opacity: .22; pointer-events: none;
+  filter: blur(56px); opacity: .18; pointer-events: none;
   /* two 420px blurred circles re-rasterizing every frame is the single most
      expensive effect on the page — only the VISIBLE slide's blobs may drift,
      invisible slides idle (identical visuals, fraction of the GPU cost) */
@@ -2124,6 +2123,31 @@ body.page-hidden .hero-slide.active .backdrop,
 body.page-hidden .hero-slide.active .blob,
 body.page-hidden .skeleton,
 body.page-hidden .ticker-track { animation-play-state: paused !important; }
+/* ---------- Motion-aware perf: freeze expensive layers while scrolling ----------
+   The aurora blobs are viewport-sized gradient layers that re-composite every
+   frame, and the sidebar's full-height blur re-samples the whole page behind it
+   on every scroll frame — the #1 desktop cost. All of it is invisible mid-scroll,
+   so while body.scrolling is set (JS: one passive scroll listener + debounce) we
+   pause the drift and drop the deep frost for the pane's own translucent fills.
+   The glass pops back the instant motion stops (~350ms after the last event).
+   Works for both orientations: phones get the blob freeze too. */
+body.scrolling #aurora .au,
+body.scrolling .hero-slide.active .backdrop,
+body.scrolling .hero-slide.active .blob,
+body.scrolling .ticker-track { animation-play-state: paused !important; }
+body.scrolling .sidebar {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  /* fills stay close to the base gradient alphas — the page behind the pane
+     is dark, so dropping the blur alone reads nearly identically; a big
+     opacity jump would pulse the sidebar on every scroll start/stop */
+  background:
+    radial-gradient(130% 55% at 15% 0%, rgba(255,255,255,.10), rgba(255,255,255,0) 52%),
+    linear-gradient(180deg, rgba(38,40,54,.38), rgba(10,10,16,.30));
+}
+@media (prefers-reduced-motion: reduce) {
+  body.scrolling .sidebar { transition: background .2s; }
+}
 /* the ambient aurora can be switched off from the panel */
 #aurora.hidden { display: none; }
 
