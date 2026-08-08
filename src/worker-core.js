@@ -362,6 +362,8 @@ const AVATAR_KYREN = '/*__AVATAR_KYREN__*/';
 const AVATAR_DENJI = '/*__AVATAR_DENJI__*/';
 /* logo mark (assets/logo.jpg) — inlined at build time, served from /logo.jpg */
 const LOGO_B64 = '/*__LOGO__*/';
+/* brand favicon (assets/favicon.png) — inlined at build time, served from /favicon.png */
+const FAVICON_PNG = '/*__FAVICON_PNG__*/';
 const b64ToBytes = (b64) => {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -397,7 +399,8 @@ async function serveApp(request, env, siteName, ctx) {
     (keywords ? '<meta name="keywords" content="' + keywords + '">\n' : '') +
     '<meta name="theme-color" content="#121212">\n' +
     '<meta property="og:site_name" content="' + siteName + '">\n' +
-    '<link rel="icon" href="data:image/svg+xml,' + encodeURIComponent(FAVICON) + '">\n' +
+    '<link rel="icon" type="image/png" href="/favicon.png">\n' +
+    '<meta property="og:image" content="' + new URL(request.url).origin + '/logo.jpg">\n' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n' +
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
     /* the site is image-heavy — warm up the TMDB image CDN connection so
@@ -427,9 +430,8 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response('OK', { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': '*' } });
     }
-    if (path === '/favicon.ico') {
-      return new Response(FAVICON, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' } });
-    }
+    if (path === '/favicon.png' || path === '/favicon.ico')
+      return new Response(b64ToBytes(FAVICON_PNG), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
     /* brand logo mark (embedded at build time — never fetched from an external host) */
     if (path === '/logo.jpg' || path === '/logo')
       return new Response(b64ToBytes(LOGO_B64), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });

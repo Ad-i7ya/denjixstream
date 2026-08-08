@@ -23,6 +23,7 @@ const b64 = (p) => readFileSync(join(root, 'assets', p)).toString('base64');
 core = core.replace("'/*__AVATAR_KYREN__*/'", () => JSON.stringify(b64('kyren.jpg')));
 core = core.replace("'/*__AVATAR_DENJI__*/'", () => JSON.stringify(b64('denji.jpg')));
 core = core.replace("'/*__LOGO__*/'",        () => JSON.stringify(b64('logo.jpg')));
+core = core.replace("'/*__FAVICON_PNG__*/'", () => JSON.stringify(b64('favicon.png')));
 
 writeFileSync(join(root, 'worker.js'), core);
 
