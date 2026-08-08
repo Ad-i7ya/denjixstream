@@ -1606,6 +1606,74 @@ body.ep-open { overflow: hidden; }
 
 /* ---------- Footer ---------- */
 /* Full footer — replaces the old bare disclaimer box */
+/* ---------------- 404 — animated warning triangle ----------------
+   A liquid-glass warning triangle floats over aurora orbs; a highlight comet
+   orbits its outline, glass dots drift up through the scene, the whole glyph
+   springs in and leans toward the cursor on fine pointers. */
+.nf-wrap {
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  text-align: center; justify-content: center; min-height: 64vh;
+  padding: 46px 16px 34px;
+}
+.nf-scene { position: relative; width: 190px; height: 190px; margin-bottom: 20px; }
+/* JS cursor-tilt lives here (inline transform); the pop + float live on the
+   layer below so the two never fight */
+.nf-bob {
+  position: absolute; inset: 0;
+  animation: nfPop .8s var(--ease-spring) both, nfFloat 7s .8s ease-in-out infinite;
+}
+.nf-tri {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  filter: drop-shadow(0 16px 36px rgba(77,176,255,.26)) drop-shadow(0 4px 14px rgba(0,0,0,.55));
+}
+.nf-tri-out { filter: drop-shadow(0 0 16px rgba(77,176,255,.45)); }
+.nf-tri-sweep { animation: nfSweep 3.6s linear infinite; }
+.nf-404 {
+  font-family: var(--font-logo); font-size: 36px; font-weight: 800; letter-spacing: .02em;
+}
+.nf-orb {
+  position: absolute; border-radius: 50%; filter: blur(44px); opacity: .5;
+  animation: nfPulse 5s ease-in-out infinite alternate; pointer-events: none;
+}
+.nf-orb-a { width: 130px; height: 130px; left: -36px; top: 8px; background: rgba(10,132,255,.5); }
+.nf-orb-b { width: 122px; height: 122px; right: -30px; bottom: 2px; background: rgba(166,106,255,.45); animation-delay: -2.4s; }
+.nf-dots { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.nf-dot {
+  position: absolute; bottom: -14px; width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,.38); box-shadow: 0 0 10px rgba(255,255,255,.32);
+  animation: nfRise 9s linear infinite; animation-delay: var(--d);
+}
+.nf-title { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+.nf-sub { max-width: 430px; color: var(--text-dim); font-size: 14px; line-height: 1.7; margin-top: 8px; }
+.nf-actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
+@keyframes nfPop {
+  from { transform: scale(.55) translateY(26px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes nfFloat {
+  0%, 100% { transform: translateY(0) rotate(-1.4deg); }
+  50%      { transform: translateY(-13px) rotate(1.4deg); }
+}
+/* the highlight comet orbits the triangle outline forever */
+@keyframes nfSweep { to { stroke-dashoffset: -420; } }
+@keyframes nfPulse { from { opacity: .32; } to { opacity: .62; } }
+@keyframes nfRise {
+  0%   { transform: translateY(0); opacity: 0; }
+  12%  { opacity: .8; }
+  100% { transform: translateY(-56vh); opacity: 0; }
+}
+/* reduced-motion: the scene freezes into a clean still */
+@media (prefers-reduced-motion: reduce) {
+  .nf-bob, .nf-tri-sweep, .nf-orb, .nf-dot { animation: none !important; }
+  .nf-bob { transform: none; }
+  .nf-tri-sweep { stroke-dashoffset: 0; }
+  .nf-dot { display: none; }
+}
+/* touch: the blur-filtered orbs pulse by repainting — freeze them; the rest
+   (comet, dots, float) stay since they're transform/offset driven */
+@media (hover: none), (pointer: coarse) {
+  .nf-orb { animation: none; opacity: .42; }
+}
 /* About / Info page — Apple-style brand card: big logo, purpose, usage,
    developers. Reuses the glass tokens; zero backdrop-filter of its own so
    the touch glass-lite pass already covers it. */

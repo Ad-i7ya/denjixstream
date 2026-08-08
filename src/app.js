@@ -216,7 +216,7 @@ function matchRoute(hash) {
     pp.forEach((p, i) => { if (p.startsWith(':')) params[p.slice(1)] = decodeURIComponent(hp[i]); else if (p !== hp[i]) ok = false; });
     if (ok) return { fn, params };
   }
-  return { fn: () => { main.innerHTML = `<div class="empty-state"><h3>Page not found</h3><p class="muted">The page you requested doesn't exist.</p></div>`; }, params: {} };
+  return { fn: viewNotFound, params: {} };
 }
 /* admin panel can switch whole sections off — those routes show a glass
    empty state instead of the page, and the nav/footer links are hidden */
@@ -2025,6 +2025,57 @@ function viewHistory() {
     }).join('')}</div>` : `<div class="empty-state">${icon('clock')}<h3>No watch history yet</h3><p class="muted">Titles you watch will appear here.</p></div>`) +
     footerNote();
   $('#clearHist')?.addEventListener('click', () => { Store.history.clear(); viewHistory(); toast('History cleared', 'success'); });
+}
+
+function viewNotFound() {
+  setTitle(['404', 'Page not found']);
+  main.innerHTML = `<div class="nf-wrap" id="nfWrap">
+    <div class="nf-scene" id="nfScene">
+      <div class="nf-bob">
+        <div class="nf-orb nf-orb-a"></div><div class="nf-orb nf-orb-b"></div>
+        <svg class="nf-tri" viewBox="0 0 120 112" aria-hidden="true">
+          <defs>
+            <linearGradient id="nfGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#7fc2ff"/><stop offset=".55" stop-color="#4db0ff"/><stop offset="1" stop-color="#a66aff"/>
+            </linearGradient>
+          </defs>
+          <path class="nf-tri-out" d="M60 8 L112 98 A10 10 0 0 1 103 106 L17 106 A10 10 0 0 1 8 98 Z" fill="none" stroke="url(#nfGrad)" stroke-width="6" stroke-linejoin="round"/>
+          <path class="nf-tri-sweep" d="M60 8 L112 98 A10 10 0 0 1 103 106 L17 106 A10 10 0 0 1 8 98 Z" fill="none" stroke="rgba(255,255,255,.95)" stroke-width="2" stroke-dasharray="70 350" stroke-linejoin="round"/>
+          <text class="nf-404" x="60" y="72" text-anchor="middle" fill="url(#nfGrad)">404</text>
+        </svg>
+      </div>
+    </div>
+    <div class="nf-dots" aria-hidden="true">
+      ${Array.from({ length: 7 }, (_, i) => `<i class="nf-dot" style="--d:${(i * 1.1).toFixed(1)}s;left:${(6 + i * 14.5).toFixed(0)}%"></i>`).join('')}
+    </div>
+    <h1 class="nf-title">Lost in the stream</h1>
+    <p class="nf-sub">The page you're looking for drifted off into the void — it doesn't exist, or it moved somewhere else.</p>
+    <div class="nf-actions">
+      <a class="btn btn-primary" href="#/">${icon('home', 'inline')} Back to Home</a>
+      <button class="btn btn-glass" id="nfBack" type="button">${icon('arrowL', 'inline')} Go back</button>
+    </div>
+  </div>`;
+  $('#nfBack')?.addEventListener('click', () => { if (window.history.length > 1) history.back(); else location.hash = '#/'; });
+  /* cursor tilt — the triangle leans toward the pointer (fine pointers only,
+     lerped per frame so it stays buttery; reduced-motion stays flat) */
+  const wrap = $('#nfWrap'); if (!wrap || !window.matchMedia) return;
+  if (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const scene = $('#nfScene'); if (!scene) return;
+  let raf = 0, tx = 0, ty = 0, cx = 0, cy = 0;
+  const step = () => {
+    raf = 0;
+    cx += (tx - cx) * 0.12; cy += (ty - cy) * 0.12;
+    if (Math.abs(tx - cx) < 0.02 && Math.abs(ty - cy) < 0.02) { scene.style.transform = ''; return; }
+    scene.style.transform = `perspective(900px) rotateX(${cy.toFixed(2)}deg) rotateY(${cx.toFixed(2)}deg)`;
+    raf = requestAnimationFrame(step);
+  };
+  wrap.addEventListener('pointermove', (e) => {
+    const r = wrap.getBoundingClientRect();
+    tx = ((e.clientX - r.left) / r.width - 0.5) * 7;
+    ty = -((e.clientY - r.top) / r.height - 0.5) * 7;
+    if (!raf) raf = requestAnimationFrame(step);
+  });
+  wrap.addEventListener('pointerleave', () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(step); });
 }
 
 function viewInfo() {
