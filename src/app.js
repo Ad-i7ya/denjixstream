@@ -98,6 +98,14 @@ const LOGO_WORD = (name) => {
    grid by that platform via with_watch_providers. */
 const PLATFORM_IDS = [8, 119, 2336, 350, 232, 237, 192, 283, 309, 315, 437, 515, 532, 502, 510, 476, 474, 614, 11, 100, 73, 538, 561, 546];
 const PLATFORM_CACHE_KEY = 'kxp:platforms:v1';
+/* if the provider list fetch ever fails, these keep the section clickable
+   (letter-tile chips, no logos) instead of rendering empty */
+const PLATFORM_FALLBACK = [
+  { provider_id: 8, provider_name: 'Netflix' }, { provider_id: 119, provider_name: 'Amazon Prime Video' },
+  { provider_id: 2336, provider_name: 'JioHotstar' }, { provider_id: 350, provider_name: 'Apple TV' },
+  { provider_id: 232, provider_name: 'Zee5' }, { provider_id: 237, provider_name: 'Sony Liv' },
+  { provider_id: 192, provider_name: 'YouTube' }, { provider_id: 283, provider_name: 'Crunchyroll' },
+];
 let PLATFORMS = null;
 const platformName = (id) => { const p = (PLATFORMS || []).find(x => x.provider_id === Number(id)); return p ? p.provider_name : null; };
 async function loadPlatforms() {
@@ -114,6 +122,8 @@ async function loadPlatforms() {
     if (d && Array.isArray(d.results)) {
       list = d.results;
       try { localStorage.setItem(PLATFORM_CACHE_KEY, JSON.stringify({ t: Date.now(), list })); } catch (_) {}
+    } else {
+      list = PLATFORM_FALLBACK; /* offline-safe: section stays clickable */
     }
   }
   PLATFORMS = list || [];
@@ -1123,7 +1133,7 @@ async function viewBrowse(params) {
   const anime = q.anime === '1';
   const provider = /^\d+$/.test(q.provider || '') ? q.provider : '';
   const pName = provider ? (platformName(provider) || 'this platform') : '';
-  const title = provider ? `Movies on ${pName}` : (anime ? (type === 'movie' ? 'Anime Movies' : 'Anime Series') : ({ movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse'));
+  const title = provider ? (type === 'movie' ? `Movies on ${pName}` : `Shows on ${pName}`) : (anime ? (type === 'movie' ? 'Anime Movies' : 'Anime Series') : ({ movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse'));
   const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['reviewed', 'Most Reviewed'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
   const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['reviewed', 'Most Reviewed'], ['on_the_air', 'On The Air']];
   const sorts = type === 'movie' ? movieSorts : tvSorts;
