@@ -400,6 +400,7 @@ document.body.appendChild(aurora);
   };
   window.addEventListener('scroll', () => { if (!pRaf) pRaf = requestAnimationFrame(apply); }, { passive: true });
   window.addEventListener('resize', () => { lastY = null; apply(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastY = null; apply(); } });
   apply();
 })();
 /* hero scroll effects — two compositor-only layers of depth that respond to
@@ -435,6 +436,7 @@ document.body.appendChild(aurora);
     heroBg = heroEl ? heroEl.querySelector('.hero-bg') : null;
     heroH = heroEl ? (heroEl.offsetHeight || 0) : 0;
     lastHp = lastHs = lastHo = null;
+    heroOn = true; /* a fresh hero starts enabled — the observer corrects it async */
     if (io) { io.disconnect(); io = null; }
     if (heroEl && 'IntersectionObserver' in window) {
       io = new IntersectionObserver((ents) => { heroOn = ents[0].isIntersecting; }, { rootMargin: '260px' });
