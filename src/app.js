@@ -8,6 +8,29 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
 const SITE_NAME = window.SITE_NAME || 'CineGlass';
+/* per-page browser titles — every route writes document.title so each history
+   entry is distinct ("Inception (2010) — KnightXstream", "Movies — Browse — …"),
+   and the 15s admin heartbeat re-applies the base name without clobbering it */
+let BASE_TITLE = SITE_NAME;
+let ROUTE_TITLE = null;
+function setTitle(parts) {
+  ROUTE_TITLE = parts || [];
+  const full = ROUTE_TITLE.length ? ROUTE_TITLE.concat(BASE_TITLE).join(' — ') : BASE_TITLE;
+  if (document.title !== full) document.title = full;
+}
+function routeTitleFor(path) {
+  if (path === '/' || path === '') return [];
+  if (path.startsWith('/browse')) return ['Browse', path.split('/')[2] === 'tv' ? 'TV Shows' : 'Movies'];
+  if (path.startsWith('/search')) return ['Search'];
+  if (path.startsWith('/categories')) return ['Categories'];
+  if (path.startsWith('/anime')) return ['Anime'];
+  if (path.startsWith('/watch')) return ['Watch'];
+  if (path.startsWith('/watchlist')) return ['Watchlist'];
+  if (path.startsWith('/history')) return ['History'];
+  if (path.startsWith('/legal')) return ['Legal'];
+  if (path.startsWith('/movie/') || path.startsWith('/tv/')) return ['Details'];
+  return [];
+}
 const IMG = 'https://image.tmdb.org/t/p';
 const IMG_BACKDROP = (p) => p ? `${IMG}/w1280${p}` : '';
 const IMG_POSTER   = (p) => p ? `${IMG}/w500${p}`  : '';
@@ -245,6 +268,7 @@ async function router(restoreY) {
       : siteCfg.tv === false && siteCfg.movies !== false ? '#/browse/movie' : null;
     if (to) { navigate(to); return; }
   }
+  setTitle(routeTitleFor(pNow));
   if (routeDisabled(pNow)) renderDisabled(); else fn(params);
   /* back/forward restores where the user left that page; new navigations land at
      top. rAF lets async rows paint first so a deep restore doesn't clamp to the
@@ -1028,6 +1052,7 @@ const SKELETON_GRID = `<div class="grid">${Array.from({ length: 10 }, () => '<di
 function apiWrap(p) { return p.catch(e => { console.error(e); main.innerHTML = `<div class="empty-state"><h3>Something went wrong</h3><p class="muted">${esc(e.message)}. Try again in a moment.</p></div>`; }); }
 
 async function viewHome() {
+  setTitle([]);
   homeSeen.clear(); /* fresh per visit — genre rows dedupe only against this render's main rows */
   main.innerHTML = `<div class="skeleton" style="height:300px;border-radius:20px"></div>${SKELETON_ROW}${SKELETON_ROW}${SKELETON_GRID}`;
   const [trendingMovie, trendingTv, popular, topRated, nowPlaying, upcoming] = await Promise.all([
@@ -1134,6 +1159,7 @@ async function viewBrowse(params) {
   const provider = /^\d+$/.test(q.provider || '') ? q.provider : '';
   const pName = provider ? (platformName(provider) || 'this platform') : '';
   const title = provider ? (type === 'movie' ? `Movies on ${pName}` : `Shows on ${pName}`) : (anime ? (type === 'movie' ? 'Anime Movies' : 'Anime Series') : ({ movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse'));
+  setTitle([title]);
   const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['reviewed', 'Most Reviewed'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
   const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['reviewed', 'Most Reviewed'], ['on_the_air', 'On The Air']];
   const sorts = type === 'movie' ? movieSorts : tvSorts;
@@ -1218,6 +1244,7 @@ const CAT_GRADS = [
   'linear-gradient(135deg,#64d2ff,#5e5ce6)',
 ];
 async function viewCategories(params) {
+  setTitle(['Categories']);
   const type = params.type || 'movie';
   main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${icon('browse','inline')} Categories</h1>
     <div class="filter-tabs" id="catTabs">
@@ -1260,6 +1287,7 @@ async function viewCategories(params) {
 
 /* ---------------- ANIME PAGE ---------------- */
 async function viewAnime() {
+  setTitle(['Anime']);
   if (siteCfg && siteCfg.anime === false) { main.innerHTML = `<div class="empty-state">${icon('sparkles')}<h3>Anime is disabled</h3><p class="muted">The owner has turned off this section from the admin panel.</p></div>`; return; }
   main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${icon('sparkles', 'inline')} Anime</h1>
     <div class="filter-tabs" id="animeTabs">
@@ -1375,6 +1403,7 @@ const searchPreview = async () => {
 async function viewSearch() {
   const q = parseQuery(location.hash.split('?')[1]);
   const query = (q.q || '').trim();
+  setTitle([query ? `Search: ${query}` : 'Search']);
   /* the filter tab rides in the hash (#/search?q=..&st=movie) so back/forward
      restores both the query AND the Movies/TV filter */
   let st = (q.st === 'movie' || q.st === 'tv') ? q.st : 'multi';
@@ -1425,6 +1454,8 @@ async function viewDetail(params) {
   ]);
   if (!d) { main.innerHTML = `<div class="empty-state"><h3>Title not found</h3></div>`; return; }
   const title = d.title || d.name;
+  const y = d.release_date ? year(d.release_date) : d.first_air_date ? year(d.first_air_date) : '';
+  setTitle([y ? `${title} (${y})` : title]);
   const trailer = (d.videos?.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube');
   /* phones on Data Saver skip the background trailer — the hero falls back to
      the normal still backdrop, exactly like a title without a trailer */
@@ -1543,6 +1574,8 @@ async function viewWatch(params) {
   ]);
   const title = d ? (d.title || d.name) : (type === 'tv' ? 'TV Show' : 'Movie');
   const epName = isTv ? (season + '×' + episode) : '';
+  const epLabel = isTv ? `S${season}E${episode}` : '';
+  setTitle([epLabel ? `${title} ${epLabel}` : title]);
   beacon('watch', { title: String(title).slice(0, 120), id: type + ':' + id });
   $('#watchMeta').innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px">
     <a class="btn btn-ghost" style="padding:8px 12px" href="#/${type}/${id}">${icon('arrowL')}</a>
@@ -1912,6 +1945,7 @@ async function renderWatchEpisodes(d, id, curSeason, curEpisode) {
 
 /* ---------------- WATCHLIST / HISTORY / LEGAL ---------------- */
 async function viewWatchlist() {
+  setTitle(['Watchlist']);
   const items = Store.watchlist.all();
   main.innerHTML = `<h1 class="page-title" style="margin-bottom:20px">${icon('bookmark', 'inline')} Watchlist</h1>` +
     (items.length ? `<div class="grid">${items.map(m => backdropCard({ ...m, media_type: m.type })).join('')}</div>` : `<div class="empty-state">${icon('bookmark')}<h3>Your watchlist is empty</h3><p class="muted">Tap the bookmark icon on any title to save it here.</p></div>`) +
@@ -1920,6 +1954,7 @@ async function viewWatchlist() {
 }
 
 function viewHistory() {
+  setTitle(['History']);
   const items = Store.history.all();
   main.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px"><h1 class="page-title">${icon('clock', 'inline')} History</h1>${items.length ? `<button class="btn btn-ghost" id="clearHist">Clear history</button>` : ''}</div>` +
     (items.length ? `<div class="grid">${items.map(h => {
@@ -1932,6 +1967,7 @@ function viewHistory() {
 }
 
 function viewLegal() {
+  setTitle(['Legal']);
   main.innerHTML = `<div class="detail-panel" style="max-width:760px;margin:0 auto">
     <h1 class="page-title" style="margin-bottom:16px">Legal / DMCA</h1>
     <p class="muted" style="line-height:1.8;font-size:14px">
@@ -2127,7 +2163,9 @@ function applySiteConfig() {
      the 15s heartbeat must never rewrite identical DOM on phones) */
   const nm = (cfg.siteName || '').trim();
   if (nm) {
-    if (document.title !== nm) document.title = nm;
+    BASE_TITLE = nm;
+    if (ROUTE_TITLE && ROUTE_TITLE.length) setTitle(ROUTE_TITLE);
+    else if (document.title !== nm) document.title = nm;
     $$('.logo a, .foot-brand').forEach(el => {
       if (el.dataset.nm !== nm) { el.dataset.nm = nm; el.innerHTML = LOGO_MARK + LOGO_WORD(nm); }
     });
