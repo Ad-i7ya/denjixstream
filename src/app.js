@@ -90,6 +90,55 @@ const LOGO_WORD = (name) => {
     : `<span class="logo-word">${esc(n)}</span>`;
 };
 
+/* ---------------- STREAMING PLATFORMS (sidebar) ----------------
+   Real platform logos come from the TMDB watch-provider list for the IN
+   region (same image CDN the posters use). The list is fetched once, cached
+   in localStorage for a week, and the sidebar shows the curated set first,
+   then the next most popular providers. Clicking a chip filters the movie
+   grid by that platform via with_watch_providers. */
+const PLATFORM_IDS = [8, 119, 2336, 350, 232, 237, 192, 283, 309, 315, 437, 515, 532, 502, 510, 476, 474, 614, 11, 100, 73, 538, 561, 546];
+const PLATFORM_CACHE_KEY = 'kxp:platforms:v1';
+let PLATFORMS = null;
+const platformName = (id) => { const p = (PLATFORMS || []).find(x => x.provider_id === Number(id)); return p ? p.provider_name : null; };
+async function loadPlatforms() {
+  const el = $('#platformGrid'); if (!el) return;
+  let list = PLATFORMS;
+  if (!list) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PLATFORM_CACHE_KEY) || 'null');
+      if (raw && Array.isArray(raw.list) && Date.now() - (raw.t || 0) < 7 * 864e5) list = raw.list;
+    } catch (_) {}
+  }
+  if (!list) {
+    const d = await api('/watch/providers/movie?language=en-US&watch_region=IN').catch(() => null);
+    if (d && Array.isArray(d.results)) {
+      list = d.results;
+      try { localStorage.setItem(PLATFORM_CACHE_KEY, JSON.stringify({ t: Date.now(), list })); } catch (_) {}
+    }
+  }
+  PLATFORMS = list || [];
+  renderPlatforms(el);
+  /* a provider page may have rendered before the list arrived (title said
+     "this platform") — re-run the route so the real platform name shows */
+  if (/#\/browse\/(movie|tv)\?[^#]*provider=/.test(location.hash)) router(location.hash);
+}
+function renderPlatforms(el) {
+  const list = PLATFORMS;
+  if (!list.length) { el.innerHTML = ''; return; }
+  const byId = {};
+  list.forEach(p => { if (p && p.provider_id) byId[p.provider_id] = p; });
+  const picked = PLATFORM_IDS.map(id => byId[id]).filter(Boolean)
+    .concat(list.filter(p => p && p.provider_id && p.provider_name && !PLATFORM_IDS.includes(p.provider_id))
+      .sort((a, b) => ((a.display_priorities || {}).IN || 999) - ((b.display_priorities || {}).IN || 999))
+      .slice(0, 4));
+  el.innerHTML = picked.map(p => {
+    const logo = p.logo_path ? 'https://image.tmdb.org/t/p/w92' + p.logo_path : '';
+    return `<a class="plat-chip" href="#/browse/movie?provider=${p.provider_id}" title="${esc(p.provider_name)}">`
+      + (logo ? `<img src="${logo}" alt="" loading="lazy" decoding="async">` : `<i class="plat-ic">${esc(String(p.provider_name)[0] || '?')}</i>`)
+      + `<span class="plat-name">${esc(p.provider_name)}</span></a>`;
+  }).join('');
+}
+
 /* ---------------- TOAST ---------------- */
 let toastTimer;
 /* kind: 'success' | 'error' — tints the pill (green/red glow) so feedback
@@ -246,6 +295,10 @@ const sidebarHTML = `
       <a class="side-link" data-nav="history" href="#/history">${icon('clock')}<span>History</span></a>
     </div>
     <div class="side-section">
+      <span class="side-label">PLATFORMS</span>
+      <div class="platform-grid" id="platformGrid"></div>
+    </div>
+    <div class="side-section">
       <span class="side-label">MORE</span>
       <a class="side-link" data-nav="legal" href="#/legal">${icon('info')}<span>Legal / DMCA</span></a>
       <button type="button" class="side-link" id="reportBtn">${icon('flag')}<span>Report a problem</span></button>
@@ -271,6 +324,7 @@ app.innerHTML = sidebarHTML + `
 <button class="menu-btn" id="menuBtn" aria-label="Open menu"><span></span><span></span><span></span></button>
 <a class="float-logo" href="#/" title="${esc(SITE_NAME)} — Home">${LOGO_MARK}${LOGO_WORD(SITE_NAME)}</a>`;
 document.body.prepend(app);
+loadPlatforms(); /* fills the sidebar PLATFORMS grid (cached, one fetch/week) */
 /* liquid-glass route veil — one fixed element that blurs the outgoing page
    while the next route swaps in underneath; opacity is driven by the router */
 const routeVeil = document.createElement('div');
@@ -1067,21 +1121,24 @@ async function viewBrowse(params) {
   const decade = /^\d{4}$/.test(q.decade || '') ? q.decade : '';
   const simId = /^\d+$/.test(q.id || '') ? q.id : '';
   const anime = q.anime === '1';
-  const title = anime ? (type === 'movie' ? 'Anime Movies' : 'Anime Series') : ({ movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse');
+  const provider = /^\d+$/.test(q.provider || '') ? q.provider : '';
+  const pName = provider ? (platformName(provider) || 'this platform') : '';
+  const title = provider ? `Movies on ${pName}` : (anime ? (type === 'movie' ? 'Anime Movies' : 'Anime Series') : ({ movie: 'Movies', tv: 'TV Shows' }[type] || 'Browse'));
   const movieSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['reviewed', 'Most Reviewed'], ['now_playing', 'Now Playing'], ['upcoming', 'Upcoming']];
   const tvSorts = [['popular', 'Popular'], ['trending', 'Trending'], ['top_rated', 'Top Rated'], ['reviewed', 'Most Reviewed'], ['on_the_air', 'On The Air']];
   const sorts = type === 'movie' ? movieSorts : tvSorts;
-  const qsExtra = `${genreId ? '&genre=' + genreId : ''}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}`;
+  const qsExtra = `${genreId ? '&genre=' + genreId : ''}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}${provider ? '&provider=' + provider : ''}`;
   main.innerHTML = `<h1 class="page-title" style="margin-bottom:18px">${esc(title)}${decade ? ` <span class="muted" style="font-size:15px;font-weight:500">· ${decade}s</span>` : ''}</h1>
     <div class="filter-tabs">${sorts.map(s => `<button class="chip ${sort === s[0] ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${s[0]}${qsExtra}'">${s[1]}</button>`).join('')}</div>
-    ${decade ? `<div class="filter-tabs"><a class="chip active" href="#/browse/${type}?decade=${decade}${anime ? '&anime=1' : ''}">${icon('calendar','inline')} ${decade}s</a><a class="chip" href="#/browse/${type}${anime ? '?anime=1' : ''}">✕ Clear decade</a></div>` : ''}
+    ${decade ? `<div class="filter-tabs"><a class="chip active" href="#/browse/${type}?decade=${decade}${anime ? '&anime=1' : ''}${provider ? '&provider=' + provider : ''}">${icon('calendar','inline')} ${decade}s</a><a class="chip" href="#/browse/${type}${anime ? '?anime=1' : ''}${provider ? '?provider=' + provider : ''}">✕ Clear decade</a></div>` : ''}
+    ${provider ? `<div class="filter-tabs"><a class="chip active">${icon('play','inline')} ${esc(pName)}</a><a class="chip" href="#/browse/${type}">✕ All platforms</a></div>` : ''}
     <div id="genreChips" class="filter-tabs"></div>
     <div id="gridWrap">${SKELETON_GRID}</div>
     <div class="load-more-wrap" id="loadMoreWrap"></div>`;
   api(`/genre/${type}/list?language=en-US`).then(g => {
-    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}'">All</button>` +
-      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}'">${esc(x.name)}</button>`).join('');
-    if (!genreId && !decade && !anime) {
+    $('#genreChips').innerHTML = `<button class="chip ${!genreId ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}${provider ? '&provider=' + provider : ''}'">All</button>` +
+      g.genres.map(x => `<button class="chip ${genreId == x.id ? 'active' : ''}" onclick="location.hash='#/browse/${type}?sort=${sort}&genre=${x.id}${decade ? '&decade=' + decade : ''}${anime ? '&anime=1' : ''}${provider ? '&provider=' + provider : ''}'">${esc(x.name)}</button>`).join('');
+    if (!genreId && !decade && !anime && !provider) {
       const tiles = `<div class="genre-tiles">${g.genres.map(x => `<a class="genre-tile" href="#/browse/${type}?sort=${sort}&genre=${x.id}">${icon('film')} ${esc(x.name)}</a>`).join('')}</div>`;
       $('#gridWrap').insertAdjacentHTML('beforebegin', tiles);
     }
@@ -1092,6 +1149,8 @@ async function viewBrowse(params) {
   const buildPath = (p) => {
     const sortBy = sort === 'trending' ? 'popularity.desc' : sort === 'top_rated' ? 'vote_average.desc' : sort === 'reviewed' ? 'vote_count.desc' : sort === 'now_playing' ? 'primary_release_date.desc' : sort === 'upcoming' ? 'primary_release_date.asc' : sort === 'on_the_air' ? 'first_air_date.desc' : 'popularity.desc';
     const pg = `&page=${p}`;
+    /* platform filter — real catalog of one streaming service (IN region) */
+    if (provider) return `/discover/${type}?language=en-US&with_watch_providers=${provider}&watch_region=IN&sort_by=${sortBy}${pg}`;
     if (anime) return `/discover/${type}?language=en-US&with_original_language=ja&with_genres=16${genreId ? ',' + genreId : ''}&sort_by=${sortBy}${decade ? '&' + dateRange(type, decade) : ''}${pg}`;
     if (genreId) return `/discover/${type}?language=en-US&with_genres=${genreId}&sort_by=${sortBy}${decade ? '&' + dateRange(type, decade) : ''}${pg}`;
     if (decade) return `/discover/${type}?language=en-US&${dateRange(type, decade)}&sort_by=${sortBy}${pg}`;
@@ -1122,7 +1181,9 @@ async function viewBrowse(params) {
   const first = await apiWrap(api(buildPath(1)));
   if (first && first.results) {
     totalPages = first.total_pages || 1; page = 1;
-    grid.innerHTML = `<div class="grid">${first.results.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`;
+    grid.innerHTML = first.results.length
+      ? `<div class="grid">${first.results.map(m => backdropCard({ ...m, media_type: type })).join('')}</div>`
+      : `<div class="empty-state" style="margin-top:40px"><h3>Nothing on ${esc(pName)} right now</h3><p class="muted">The catalog for this platform is empty in your region — try another one.</p></div>`;
     renderMore();
   }
   bindWatchlistButtons();

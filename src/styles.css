@@ -194,6 +194,37 @@ body.resizing .main-area, body.resizing .collapse-btn { transition: none !import
 }
 .side-scroll { overflow-y: auto; flex: 1; min-height: 0; }
 
+/* ---------------- Streaming platforms (sidebar) ---------------- */
+.platform-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+}
+.plat-chip {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 8px 6px 6px; border-radius: 12px; text-align: center; min-width: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter: blur(10px) saturate(150%); backdrop-filter: blur(10px) saturate(150%);
+  transition: transform .25s var(--ease-spring), background .25s, border-color .25s;
+}
+.plat-chip:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.09));
+  border-color: rgba(255,255,255,.3); transform: translateY(-1px);
+}
+.plat-chip img {
+  width: 100%; height: 30px; object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.45));
+}
+.plat-ic {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: rgba(255,255,255,.14); color: #fff;
+  font-weight: 800; font-size: 15px;
+}
+.plat-name {
+  font-size: 9.5px; line-height: 1.15; color: var(--text-dim);
+  font-weight: 600; letter-spacing: .01em; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; max-width: 100%;
+}
+
 .collapse-btn {
   position: fixed; top: 50%; transform: translateY(-20px);
   left: var(--sbw, 264px); z-index: 51;
@@ -2000,7 +2031,7 @@ body.effects-lite .ticker-track { animation: none; }
   .chip, .server-tab, .btn-glass, .search-bar, .cat-tile.cat-decade,
   .hero-nav, .hero-dots, .contact-btn, .collapse-btn,
   .pc-btn, .pl-badge, .pl-fs, .pl-shield-chip, .pl-err, .pl-err-ico,
-  .toast, .dev-chip, .ep-close, .sr-kbd {
+  .toast, .dev-chip, .ep-close, .sr-kbd, .plat-chip {
     -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
   }
   /* always-on fixed bars — the 820px block re-adds blur(12-14px) to these
@@ -2050,6 +2081,7 @@ body.effects-lite .ticker-track { animation: none; }
   .contact-btn { background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.06)); }
   .cat-tile.cat-decade { background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.07)); }
   .chip, .server-tab { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07)); }
+  .plat-chip { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.07)); }
   .btn-glass { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.06)); }
   .search-bar { background: rgba(28,28,38,.85); }
   .pc-btn { background: rgba(10,10,14,.72); }
